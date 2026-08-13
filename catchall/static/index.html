@@ -4,12 +4,46 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>CatchAll</title>
+        <link rel="stylesheet" href="/static/styles.css">
     </head>
     <body>
-        <main>
-            <h1>CatchAll</h1>
-            <p>Stable real-time captions with an optional plain-language view</p>
-            <p role="status">The CatchAll server is running.</p>
-        </main>
+        <div class="page">
+            <header class="site-header">
+                <h1>CatchAll</h1>
+                <p role="status" aria-live="polite">Disconnected</p>
+            </header>
+
+            <main aria-label="Live captions">
+                <div class="lanes">
+                    <section class="lane" aria-labelledby="verbatim-heading">
+                        <h2 id="verbatim-heading">Verbatim Captions</h2>
+
+                        <div class="caption-region">
+                            <h3>Finalized captions</h3>
+                            <p class="caption-text">Finalized captions will appear here.</p>
+                        </div>
+
+                        <div class="caption-region">
+                            <h3><span class="provisional-symbol" aria-hidden="true">◌</span> Provisional captions</h3>
+                            <p class="caption-text provisional"><span aria-hidden="true">◌</span>Listening for speech...</p>
+                        </div>
+                    </section>
+
+                    <section class="lane" aria-labelledby="plain-heading">
+                        <h2 id="plain-heading">Plain-Language Captions <span class="optional-tag">(optional)</span></h2>
+
+                        <div class="caption-region">
+                            <h3>Simplified Captions</h3>
+                            <p class="caption-text">Plain-language captions will appear after text is finalized.</p>
+                        </div>
+                    </section>
+                </div>
+            </main>
+
+            <footer class="site-footer">
+                <p>CatchAll does not store audio or transcripts. Optional plain-language processing may send finalized text to a configured provider.</p>
+            </footer>
+                
+        </div>
     </body>
 </html>
