@@ -27,3 +27,25 @@ def test_stylesheet() -> None:
 
     assert response.status_code == 200
     assert "text/css" in response.headers["content-type"]
+
+def test_websocket_connects() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        message = websocket.receive_json()
+
+        assert message == {
+            "type": "connection",
+            "status": "connected",
+        }
+
+def test_websocket_ping_pong() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        websocket.receive_json()
+        websocket.send_json({"type": "ping"})
+
+        assert websocket.receive_json() == {"type": "pong"}
+
+def test_javascript_is_served() -> None:
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
