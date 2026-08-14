@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(
+    CATCHALL_ENABLE_TSAN
+    "Enable ThreadSanitizer for native tests"
+    OFF
+)
+
 add_library(catchall_audio STATIC
     src/audio_ring.cpp
 )
@@ -24,6 +30,8 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    find_package(Threads REQUIRED)
+
     add_executable(audio_ring_tests
         tests/test_audio_ring.cpp
     )
@@ -31,10 +39,37 @@ if(BUILD_TESTING)
     target_link_libraries(audio_ring_tests
         PRIVATE
             catchall_audio
+            Threads::Threads
     )
 
     add_test(
         NAME audio_ring
         COMMAND audio_ring_tests
     )
+
+    if(CATCHALL_ENABLE_TSAN)
+        if(MSVC)
+            message(FATAL_ERROR "ThreadSanitizer is not configured for MSVC")
+        endif()
+
+        target_compile_options(
+            catchall_audio
+            PRIVATE
+                -fsanitize=thread
+                -fno-omit-frame-pointer
+        )
+
+        target_compile_options(
+            audio_ring_tests
+            PRIVATE
+                -fsanitize=thread
+                -fno-omit-frame-pointer
+        )
+
+        target_link_options(
+            audio_ring_tests
+            PRIVATE
+                -fsanitize=thread
+        )
+    endif()
 endif()

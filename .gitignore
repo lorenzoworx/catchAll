@@ -11,7 +11,7 @@ __pycache__/
 *.egg-info/
 
 # Native builds
-build/
+build*/
 dist/
 *.so
 *.dylib
