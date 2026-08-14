@@ -1,6 +1,9 @@
 [build-system]
-requires = ["setuptools>=75"]
-build-backend = "setuptools.build_meta"
+requires = [
+    "scikit-build-core>=0.11",
+    "nanobind>=2.0",
+]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "catchall"
@@ -26,3 +29,8 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.scikit-build]
+minimum-version = "0.11"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["catchall"]

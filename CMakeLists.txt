@@ -16,6 +16,12 @@ add_library(catchall_audio STATIC
     src/audio_ring.cpp
 )
 
+set_target_properties(
+    catchall_audio
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
+
 target_include_directories(catchall_audio
     PUBLIC
         include
@@ -25,6 +31,34 @@ if(MSVC)
     target_compile_options(catchall_audio PRIVATE /W4)
 else()
     target_compile_options(catchall_audio PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(SKBUILD)
+    find_package(
+        Python 3.12
+        REQUIRED COMPONENTS
+            Interpreter
+            Development.Module
+    )
+
+    find_package(nanobind CONFIG REQUIRED)
+
+    nanobind_add_module(
+        _core
+        NB_STATIC
+        src/bindings.cpp
+    )
+
+    target_link_libraries(
+        _core
+        PRIVATE
+            catchall_audio
+    )
+
+    install(
+        TARGETS _core
+        LIBRARY DESTINATION catchall
+    )
 endif()
 
 include(CTest)
