@@ -1,6 +1,9 @@
+import struct
+
 from fastapi.testclient import TestClient
 
 from catchall.app import app
+from catchall.audio_protocol import AUDIO_FRAME_TYPE, AUDIO_HEADER
 
 client = TestClient(app)
 
@@ -49,3 +52,34 @@ def test_javascript_is_served() -> None:
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
+def test_websocket_writes_binary_audio_to_ring() -> None:
+    samples = [0] * 320
+    header = AUDIO_HEADER.pack(
+        AUDIO_FRAME_TYPE,
+        0,
+        len(samples),
+        0,
+    )
+    payload = header + struct.pack(f"<{len(samples)}h", *samples)
+
+    with client.websocket_connect("/ws") as websocket:
+        websocket.receive_json()
+        websocket.send_bytes(payload)
+        websocket.send_json({"type": "stats"})
+
+        assert websocket.receive_json() == {
+            "type": "stats",
+            "buffered_samples": 320,
+            "dropped_samples": 0,
+        }
+
+def test_websocket_rejects_invalid_audio_frame() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        websocket.receive_json()
+        websocket.send_bytes(b"\x01")
+
+        message = websocket.receive_json()
+
+        assert message["type"] == "error"
+        assert message["code"] == "invalid_audio_frame"
