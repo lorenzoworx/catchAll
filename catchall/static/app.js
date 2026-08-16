@@ -1,7 +1,7 @@
 const connectionStatus = document.querySelector("#connection-status");
 
 const microphoneButton = document.querySelector("#microphone-button");
-const recordingStatus = document.querySelector("#recording-status")
+const recordingStatus = document.querySelector("#recording-status");
 const captureDetails = document.querySelector("#capture-details");
 
 let audioContext = null;
@@ -80,18 +80,23 @@ async function startCapture() {
 
         captureNode.port.addEventListener("message", (event) => {
             if (event.data.type === "ready") {
-                captureDetails.textContent = `Browser sample rate: ${event.data.sampleRate} Hz`;
+                captureDetails.textContent = 
+                    `Input: ${event.data.inputSampleRate} Hz; ` +
+                    `prepared output: ${event.data.outputSampleRate} Hz`;
             }
 
             if (event.data.type === "progress") {
-                const seconds = event.data.totalSamples / event.data.sampleRate;
+                const seconds = event.data.framedSamples / event.data.outputSampleRate;
 
-                captureDetails.textContent = `Captured ${seconds.toFixed(1)} seconds at ` + `${event.data.sampleRate} Hz`;
+                captureDetails.textContent = 
+                    `Prepared ${seconds.toFixed(1)} seconds ` +
+                    `of 16 kHz audio`;
             }
         });
 
         captureNode.port.start();
         mediaSource.connect(captureNode);
+        await audioContext.resume();
 
         recordingStatus.textContent = "Microphone recording";
         microphoneButton.textContent = "Stop microphone";
