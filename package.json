@@ -1,0 +1,30 @@
+{
+  "name": "catchall-web",
+  "version": "1.0.0",
+  "description": "Real-time captions with finalized text that stays finalized, plus an optional plain-language view beside the original transcript.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "lint:js": "eslint catchall/static"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lorenzoworx/catchAll.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/lorenzoworx/catchAll/issues"
+  },
+  "homepage": "https://github.com/lorenzoworx/catchAll#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
+  }
+}

@@ -24,6 +24,8 @@ def test_homepage() -> None:
     assert 'aria-live="polite"' in response.text
     assert "verbatim captions" in response.text.lower()
     assert "plain-language captions" in response.text.lower()
+    assert 'id="microphone-button"' in response.text
+    assert 'id="recording-status"' in response.text
 
 def test_stylesheet() -> None:
     response = client.get("/static/styles.css")
@@ -83,3 +85,9 @@ def test_websocket_rejects_invalid_audio_frame() -> None:
 
         assert message["type"] == "error"
         assert message["code"] == "invalid_audio_frame"
+
+def test_audio_worklet_is_served() -> None:
+    response = client.get("/static/capture-worklet.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
