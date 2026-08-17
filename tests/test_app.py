@@ -91,3 +91,9 @@ def test_audio_worklet_is_served() -> None:
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
+def test_browser_audio_protocol_module_is_served() -> None:
+    response = client.get("/static/audio-protocol.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]

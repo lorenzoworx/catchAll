@@ -12,7 +12,7 @@ export default [
     {
         files: ["catchall/static/app.js"],
         languageOptions: {
-            sourceType: "script",
+            sourceType: "module",
             globals: {
                 ...globals.browser,
             },

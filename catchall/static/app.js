@@ -1,3 +1,5 @@
+import { buildAudioFrame } from "./audio-protocol.js";
+
 const connectionStatus = document.querySelector("#connection-status");
 
 const microphoneButton = document.querySelector("#microphone-button");
@@ -8,6 +10,7 @@ let audioContext = null;
 let mediaStream = null;
 let mediaSource = null;
 let captureNode = null;
+let socket = null;
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
@@ -23,7 +26,7 @@ function makeWebSocketUrl() {
 function connect() {
     setConnectionStatus("Connecting...");
 
-    const socket = new WebSocket(makeWebSocketUrl());
+    socket = new WebSocket(makeWebSocketUrl());
 
     socket.addEventListener("message", (event) => {
         const message = JSON.parse(event.data);
@@ -39,6 +42,7 @@ function connect() {
 
     socket.addEventListener("close", () => {
         setConnectionStatus("Disconnected");
+        socket = null;
     });
 }
 
@@ -79,6 +83,21 @@ async function startCapture() {
         );
 
         captureNode.port.addEventListener("message", (event) => {
+            if(event.data.type === "audio-frame") {
+                if(socket?.readyState !== WebSocket.OPEN) {
+                    return;
+                }
+
+                const samples = new Int16Array(event.data.samples);
+                const frame = buildAudioFrame(
+                    samples,
+                    event.data.firstSampleIndex
+                );
+
+                socket.send(frame);
+                return;
+            }
+
             if (event.data.type === "ready") {
                 captureDetails.textContent = 
                     `Input: ${event.data.inputSampleRate} Hz; ` +
