@@ -55,7 +55,7 @@ def test_javascript_is_served() -> None:
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
 
-def test_websocket_writes_binary_audio_to_ring() -> None:
+def test_websocket_consumes_binary_audio() -> None:
     samples = [0] * 320
     header = AUDIO_HEADER.pack(
         AUDIO_FRAME_TYPE,
@@ -72,8 +72,12 @@ def test_websocket_writes_binary_audio_to_ring() -> None:
 
         assert websocket.receive_json() == {
             "type": "stats",
-            "buffered_samples": 320,
+            "received_samples": 320,
+            "consumed_samples": 320,
+            "buffered_samples": 0,
+            "buffered_seconds": 0.0,
             "dropped_samples": 0,
+            "rejected_frames": 0,
         }
 
 def test_websocket_rejects_invalid_audio_frame() -> None:

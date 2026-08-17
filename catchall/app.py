@@ -1,4 +1,6 @@
+import asyncio
 import json
+from contextlib import suppress
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -6,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from catchall import _core
+from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
 
 SAMPLE_RATE = 16_000
@@ -28,6 +31,10 @@ def inded() -> FileResponse:
 @app.websocket("/ws")
 async def caption_socket(websocket: WebSocket) -> None:
     ring = _core.AudioRing(RING_CAPACITY)
+    consumer = AudioConsumer(ring, chunk_samples=320)
+
+    received_samples = 0
+    rejected_frames = 0
 
     await websocket.accept()
     await websocket.send_json(
@@ -36,6 +43,8 @@ async def caption_socket(websocket: WebSocket) -> None:
             "status": "connected",
         }
     )
+
+    consumer_task = asyncio.create_task(consumer.run())
 
     try:
         while True:
@@ -59,9 +68,16 @@ async def caption_socket(websocket: WebSocket) -> None:
                     )
                     continue
 
+                received_samples += len(frame.samples)
                 accepted = ring.write(frame.samples)
 
+                if accepted > 0:
+                    consumer.notify()
+                    await asyncio.sleep(0)
+
                 if accepted != len(frame.samples):
+                    rejected_frames += 1
+
                     await websocket.send_json(
                        {
                             "type": "error",
@@ -83,24 +99,7 @@ async def caption_socket(websocket: WebSocket) -> None:
                     {
                         "type": "error",
                         "code": "invalid_json",
-                        "message": "Control message is not valid JSON."
-                    }
-                )
-                continue
-
-            text = incoming.get("text")
-
-            if text is None:
-                continue
-
-            try:
-                message = json.loads(text)
-            except json.JSONDecodeError:
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "code": "invalid_json",
-                        "message": "Control message is not valid JSON."
+                        "message": "Control message is not valid JSON.",
                     }
                 )
                 continue
@@ -108,11 +107,21 @@ async def caption_socket(websocket: WebSocket) -> None:
             if message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
             elif message.get("type") == "stats":
+                buffered_samples = ring.size
+
                 await websocket.send_json(
                     {
                         "type": "stats",
-                        "buffered_samples": ring.size,
+                        "received_samples": received_samples,
+                        "consumed_samples": (
+                            consumer.consumed_samples
+                        ),
+                        "buffered_samples": buffered_samples,
+                        "buffered_seconds": (
+                            buffered_samples / SAMPLE_RATE
+                        ),
                         "dropped_samples": ring.dropped_samples,
+                        "rejected_frames": rejected_frames,
                     }
                 )
             else:
@@ -125,3 +134,8 @@ async def caption_socket(websocket: WebSocket) -> None:
                 )
     except WebSocketDisconnect:
         pass
+    finally:
+        consumer_task.cancel()
+
+        with suppress(asyncio.CancelledError):
+            await consumer_task
