@@ -46,3 +46,18 @@ def test_background_consumer_drains_after_notification() -> None:
                 await task
 
     asyncio.run(scenario())
+
+def test_delivers_consumed_chunks_to_handler() -> None:
+    ring = _core.AudioRing(1_000)
+    delivered: list[list[float]] = []
+
+    consumer = AudioConsumer(
+        ring,
+        chunk_samples=320,
+        on_chunk=delivered.append,
+    )
+
+    assert ring.write([0.25] * 320) == 320
+    assert consumer.drain_available() == 320
+
+    assert delivered == [[0.25] * 320]
