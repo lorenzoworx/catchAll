@@ -5,6 +5,7 @@ const connectionStatus = document.querySelector("#connection-status");
 const microphoneButton = document.querySelector("#microphone-button");
 const recordingStatus = document.querySelector("#recording-status");
 const captureDetails = document.querySelector("#capture-details");
+const provisionalCaption = document.querySelector("#provisional-caption");
 
 let audioContext = null;
 let mediaStream = null;
@@ -34,6 +35,25 @@ function connect() {
         if (message.type === "connection" && message.status === "connected") {
             setConnectionStatus("Connected");
         }
+
+        if (message.type === "recognizer" && message.status == "loading") {
+            recordingStatus.textContent = "Loading speech recognition";
+            microphoneButton.disabled = true;
+        }
+
+        if (message.type === "recognizer" && message.status == "ready") {
+            recordingStatus.textContent = "Microphone ready";
+            microphoneButton.disabled = false;
+        }
+
+        if (message.type === "error" && message.code === "recognizer_unavailable") {
+            recordingStatus.textContent = "Speech recognition unavailable";
+            microphoneButton.disabled =true;
+        }
+
+        if (message.type === "caption" && message.state === "provisional") {
+            provisionalCaption.textContent = message.text;
+        }
     });
 
     socket.addEventListener("error", () => {
@@ -43,12 +63,14 @@ function connect() {
     socket.addEventListener("close", () => {
         setConnectionStatus("Disconnected");
         socket = null;
+        microphoneButton.disabled = true;
     });
 }
 
 connect();
 
 async function startCapture() {
+    provisionalCaption.textContent = "Listening for speech";
     microphoneButton.disabled = true;
     recordingStatus.textContent = "Requesting microphone permission...";
 

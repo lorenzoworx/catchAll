@@ -1,6 +1,5 @@
 import asyncio
 import json
-from contextlib import suppress
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -10,6 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from catchall import _core
 from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
+from catchall.recognition import RecognitionPipeline, TranscriptCandidate
+from catchall.recognizer_provider import RecognizerProvider
+from catchall.whisper_recognizer import WhisperRecognizer
 
 SAMPLE_RATE = 16_000
 RING_SECONDS = 10
@@ -18,6 +20,9 @@ RING_CAPACITY = SAMPLE_RATE * RING_SECONDS
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="CatchAll")
+app.state.recognizer_provider = RecognizerProvider(
+    WhisperRecognizer
+)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/health")
@@ -31,20 +36,100 @@ def inded() -> FileResponse:
 @app.websocket("/ws")
 async def caption_socket(websocket: WebSocket) -> None:
     ring = _core.AudioRing(RING_CAPACITY)
-    consumer = AudioConsumer(ring, chunk_samples=320)
 
     received_samples = 0
     rejected_frames = 0
 
+    send_lock = asyncio.Lock()
+
+    async def send_message(message: dict[str, object]) -> None:
+        async with send_lock:
+            await websocket.send_json(message)
+
     await websocket.accept()
-    await websocket.send_json(
+
+    await send_message(
         {
             "type": "connection",
             "status": "connected",
         }
     )
 
-    consumer_task = asyncio.create_task(consumer.run())
+    await send_message(
+        {
+            "type": "recognizer",
+            "status": "loading",
+        }
+    )
+
+    try:
+        recognizer = await websocket.app.state.recognizer_provider.get()
+    except Exception as error:  #noqa: BLE001
+                                # Model loading can raise several third-party exception types. So we convert them into one stable WebSocket error response
+        await send_message(
+            {
+                "type": "error",
+                "code": "recognizer_unavailable",
+                "message": f"{type(error).__name__}: {error}",
+            }
+        )
+        await websocket.close(code=1011)
+        return
+
+    await send_message(
+        {
+            "type": "recognizer",
+            "status": "ready",
+        }
+    )
+
+    recognition_messages: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    def on_candidate(candidate: TranscriptCandidate) -> None:
+        recognition_messages.put_nowait({
+            "type": "caption",
+            "state": "provisional",
+            "text": candidate.text,
+            "window_start_sample": candidate.window_start_sample,
+            "window_end_sample": candidate.window_end_sample,
+        })
+
+    def on_recognition_error(message: str) -> None:
+        recognition_messages.put_nowait({
+            "type": "error",
+            "code": "recognition_failed",
+            "message": message,
+        })
+
+    pipeline = RecognitionPipeline(
+        recognizer=recognizer,
+        on_candidate=on_candidate,
+        on_error=on_recognition_error,
+    )
+
+    def accept_audio(samples: list[float]) -> None:
+        pipeline.accept_audio(samples)
+
+    consumer = AudioConsumer(
+        ring,
+        chunk_samples=320,
+        on_chunk=accept_audio,
+    )
+
+    async def forward_recognition_messages() -> None:
+        while True:
+            message = await recognition_messages.get()
+
+            try:
+                await send_message(message)
+            finally:
+                recognition_messages.task_done()
+
+    tasks = [
+        asyncio.create_task(consumer.run()),
+        asyncio.create_task(pipeline.run()),
+        asyncio.create_task(forward_recognition_messages()),
+    ]
 
     try:
         while True:
@@ -78,7 +163,7 @@ async def caption_socket(websocket: WebSocket) -> None:
                 if accepted != len(frame.samples):
                     rejected_frames += 1
 
-                    await websocket.send_json(
+                    await send_message(
                        {
                             "type": "error",
                             "code": "audio_buffer_full",
@@ -95,7 +180,7 @@ async def caption_socket(websocket: WebSocket) -> None:
             try:
                 message = json.loads(text)
             except json.JSONDecodeError:
-                await websocket.send_json(
+                await send_message(
                     {
                         "type": "error",
                         "code": "invalid_json",
@@ -105,27 +190,26 @@ async def caption_socket(websocket: WebSocket) -> None:
                 continue
 
             if message.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
+                await send_message({"type": "pong"})
             elif message.get("type") == "stats":
                 buffered_samples = ring.size
 
-                await websocket.send_json(
+                await send_message(
                     {
                         "type": "stats",
                         "received_samples": received_samples,
-                        "consumed_samples": (
-                            consumer.consumed_samples
-                        ),
+                        "consumed_samples": consumer.consumed_samples,
                         "buffered_samples": buffered_samples,
-                        "buffered_seconds": (
-                            buffered_samples / SAMPLE_RATE
-                        ),
+                        "buffered_seconds": buffered_samples / SAMPLE_RATE,
                         "dropped_samples": ring.dropped_samples,
                         "rejected_frames": rejected_frames,
+                        "pending_recognition_windows": pipeline.pending_windows,
+                        "rejected_recognition_windows": pipeline.rejected_windows,
+                        "failed_recognition_windows": pipeline.failed_windows,
                     }
                 )
             else:
-                await websocket.send_json(
+                await send_message(
                     {
                         "type": "error",
                         "code": "unknown_message",
@@ -135,7 +219,10 @@ async def caption_socket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        consumer_task.cancel()
+        for task in tasks:
+            task.cancel()
 
-        with suppress(asyncio.CancelledError):
-            await consumer_task
+        await asyncio.gather(
+            *tasks,
+            return_exceptions=True,
+        )

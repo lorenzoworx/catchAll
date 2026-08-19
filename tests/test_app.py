@@ -1,11 +1,37 @@
 import struct
+from collections.abc import Sequence
+from typing import Any
 
 from fastapi.testclient import TestClient
 
 from catchall.app import app
 from catchall.audio_protocol import AUDIO_FRAME_TYPE, AUDIO_HEADER
+from catchall.recognizer_provider import RecognizerProvider
+
+
+class FakeRecognizer:
+    def transcribe(self, samples: Sequence[float]) -> str:
+        return "test caption"
+
+app.state.recognizer_provider = RecognizerProvider(
+    FakeRecognizer
+)
 
 client = TestClient(app)
+
+def receive_startup_messages(websocket: Any) -> None:
+    assert websocket.receive_json() == {
+        "type": "connection",
+        "status": "connected",
+    }
+    assert websocket.receive_json() == {
+        "type": "recognizer",
+        "status": "loading",
+    }
+    assert websocket.receive_json() == {
+        "type": "recognizer",
+        "status": "ready",
+    }
 
 def test_health_endpoint() -> None:
     response = client.get("/health")
@@ -25,6 +51,7 @@ def test_homepage() -> None:
     assert "verbatim captions" in response.text.lower()
     assert "plain-language captions" in response.text.lower()
     assert 'id="microphone-button"' in response.text
+    assert "disabled" in response.text
     assert 'id="recording-status"' in response.text
 
 def test_stylesheet() -> None:
@@ -35,16 +62,11 @@ def test_stylesheet() -> None:
 
 def test_websocket_connects() -> None:
     with client.websocket_connect("/ws") as websocket:
-        message = websocket.receive_json()
-
-        assert message == {
-            "type": "connection",
-            "status": "connected",
-        }
+        receive_startup_messages(websocket)
 
 def test_websocket_ping_pong() -> None:
     with client.websocket_connect("/ws") as websocket:
-        websocket.receive_json()
+        receive_startup_messages(websocket)
         websocket.send_json({"type": "ping"})
 
         assert websocket.receive_json() == {"type": "pong"}
@@ -66,7 +88,7 @@ def test_websocket_consumes_binary_audio() -> None:
     payload = header + struct.pack(f"<{len(samples)}h", *samples)
 
     with client.websocket_connect("/ws") as websocket:
-        websocket.receive_json()
+        receive_startup_messages(websocket)
         websocket.send_bytes(payload)
         websocket.send_json({"type": "stats"})
 
@@ -78,11 +100,14 @@ def test_websocket_consumes_binary_audio() -> None:
             "buffered_seconds": 0.0,
             "dropped_samples": 0,
             "rejected_frames": 0,
+            "pending_recognition_windows": 0,
+            "rejected_recognition_windows": 0,
+            "failed_recognition_windows": 0,
         }
 
 def test_websocket_rejects_invalid_audio_frame() -> None:
     with client.websocket_connect("/ws") as websocket:
-        websocket.receive_json()
+        receive_startup_messages(websocket)
         websocket.send_bytes(b"\x01")
 
         message = websocket.receive_json()
@@ -101,3 +126,31 @@ def test_browser_audio_protocol_module_is_served() -> None:
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
+def test_websocket_emits_provisional_caption() -> None:
+    samples = [0] * 320
+
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        for frame_number in range(50):
+            header = AUDIO_HEADER.pack(
+                AUDIO_FRAME_TYPE,
+                0,
+                len(samples),
+                frame_number * len(samples),
+            )
+            payload = header + struct.pack(
+                f"<{len(samples)}h",
+                *samples,
+            )
+
+            websocket.send_bytes(payload)
+
+        assert websocket.receive_json() == {
+            "type": "caption",
+            "state": "provisional",
+            "text": "test caption",
+            "window_start_sample": 0,
+            "window_end_sample": 16_000,
+        }

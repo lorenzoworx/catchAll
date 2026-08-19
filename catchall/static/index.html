@@ -11,7 +11,7 @@
             <header class="site-header">
                 <h1>CatchAll</h1>
                 <p role="status" aria-live="polite" id="connection-status">Disconnected</p>
-                <button id="microphone-button" type="button">
+                <button id="microphone-button" type="button" disabled>
                     Start microphone
                 </button>
                 <p id="recording-status" role="status" aria-live="polite">Microphone stopped</p>
@@ -30,7 +30,10 @@
 
                         <div class="caption-region">
                             <h3><span class="provisional-symbol" aria-hidden="true">◌</span> Provisional captions</h3>
-                            <p class="caption-text provisional"><span aria-hidden="true">◌</span>Listening for speech...</p>
+                            <p class="caption-text provisional">
+                                <span class="provisional-symbol" aria-hidden="true">◌</span>
+                                <span id="provisional-caption">Listening for speech...</span>
+                            </p>
                         </div>
                     </section>
 
