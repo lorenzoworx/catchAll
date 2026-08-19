@@ -28,6 +28,7 @@ function connect() {
     setConnectionStatus("Connecting...");
 
     socket = new WebSocket(makeWebSocketUrl());
+    // window.catchallSocket = socket;
 
     socket.addEventListener("message", (event) => {
         const message = JSON.parse(event.data);
@@ -54,6 +55,8 @@ function connect() {
         if (message.type === "caption" && message.state === "provisional") {
             provisionalCaption.textContent = message.text;
         }
+
+        // console.log("Server message", message)
     });
 
     socket.addEventListener("error", () => {

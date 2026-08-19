@@ -4,6 +4,7 @@ from contextlib import suppress
 
 from catchall.recognition import RecognitionPipeline
 from catchall.recognition_window import RecognitionWindowBuffer
+from catchall.speech_gate import EnergySpeechGate
 
 
 class FakeRecognizer:
@@ -131,3 +132,26 @@ def test_reports_recognizer_failures() -> None:
                 await task
 
     asyncio.run(scenario())
+
+def test_silence_does_not_queue_recognition() -> None:
+    pipeline = RecognitionPipeline(
+        recognizer=FakeRecognizer(),
+        on_candidate=lambda candidate: None,
+        window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2),
+        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1)
+    )
+
+    assert pipeline.accept_audio([0.0] * 4) == 0
+    assert pipeline.pending_windows == 0
+    assert pipeline.skipped_silence_windows == 1
+
+def test_active_audio_queues_recognition() -> None:
+    pipeline = RecognitionPipeline(
+        recognizer=FakeRecognizer(),
+        on_candidate=lambda candidate: None,
+        window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2),
+        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1)
+        )
+    assert pipeline.accept_audio([0.1] * 4) == 1
+    assert pipeline.pending_windows == 1
+    assert pipeline.skipped_silence_windows == 0

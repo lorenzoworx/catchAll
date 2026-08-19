@@ -103,6 +103,7 @@ def test_websocket_consumes_binary_audio() -> None:
             "pending_recognition_windows": 0,
             "rejected_recognition_windows": 0,
             "failed_recognition_windows": 0,
+            "skipped_silence_windows": 0,
         }
 
 def test_websocket_rejects_invalid_audio_frame() -> None:
@@ -128,7 +129,7 @@ def test_browser_audio_protocol_module_is_served() -> None:
     assert "javascript" in response.headers["content-type"]
 
 def test_websocket_emits_provisional_caption() -> None:
-    samples = [0] * 320
+    samples = [12_000] * 320
 
     with client.websocket_connect("/ws") as websocket:
         receive_startup_messages(websocket)

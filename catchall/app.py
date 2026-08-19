@@ -11,6 +11,7 @@ from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
 from catchall.recognition import RecognitionPipeline, TranscriptCandidate
 from catchall.recognizer_provider import RecognizerProvider
+from catchall.speech_gate import EnergySpeechGate
 from catchall.whisper_recognizer import WhisperRecognizer
 
 SAMPLE_RATE = 16_000
@@ -105,6 +106,7 @@ async def caption_socket(websocket: WebSocket) -> None:
         recognizer=recognizer,
         on_candidate=on_candidate,
         on_error=on_recognition_error,
+        speech_gate=EnergySpeechGate(),
     )
 
     def accept_audio(samples: list[float]) -> None:
@@ -206,6 +208,7 @@ async def caption_socket(websocket: WebSocket) -> None:
                         "pending_recognition_windows": pipeline.pending_windows,
                         "rejected_recognition_windows": pipeline.rejected_windows,
                         "failed_recognition_windows": pipeline.failed_windows,
+                        "skipped_silence_windows": pipeline.skipped_silence_windows
                     }
                 )
             else:

@@ -29,6 +29,7 @@ class RecognitionPipeline:
             on_error: ErrorHandler | None = None,
             window_buffer: RecognitionWindowBuffer | None = None,
             max_pending_windows: int = 2,
+            speech_gate: SpeechGate | None = None
     ) -> None:
         if max_pending_windows <= 0:
             raise ValueError("Pending-window capacity must be positive")
@@ -38,9 +39,11 @@ class RecognitionPipeline:
         self._on_error = on_error
         self._window_buffer = window_buffer if window_buffer is not None else RecognitionWindowBuffer()
         self._pending: asyncio.Queue[AudioWindow] = asyncio.Queue(maxsize=max_pending_windows)
+        self._speech_gate = speech_gate
 
         self.rejected_windows = 0
         self.failed_windows = 0
+        self.skipped_silence_windows = 0
 
     @property
     def pending_windows(self) -> int:
@@ -50,6 +53,9 @@ class RecognitionPipeline:
         queued_windows = 0
 
         for window in self._window_buffer.add(samples):
+            if(self._speech_gate is not None and not self._speech_gate.has_speech(window.samples)):
+                self.skipped_silence_windows += 1
+                continue
             try:
                 self._pending.put_nowait(window)
             except asyncio.QueueFull:
@@ -89,3 +95,7 @@ class RecognitionPipeline:
 
             finally:
                 self._pending.task_done()
+
+class SpeechGate(Protocol):
+    def has_speech(self, samples: Sequence[float]) -> bool:
+        ...
