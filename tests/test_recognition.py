@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Sequence
 from contextlib import suppress
 
-from catchall.recognition import RecognitionPipeline
+from catchall.recognition import RecognitionHypothesis, RecognitionPipeline, TimedWord
 from catchall.recognition_window import RecognitionWindowBuffer
 from catchall.speech_gate import EnergySpeechGate
 
@@ -12,11 +12,21 @@ class FakeRecognizer:
         self.result = result
         self.calls: list[tuple[float, ...]] = []
 
-    def transcribe(self, samples: Sequence[float]) -> str:
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
         snapshot = tuple(samples)
         self.calls.append(snapshot)
 
-        return self.result
+        text = self.result.strip()
+
+        if not text:
+            return RecognitionHypothesis(words=())
+
+        return RecognitionHypothesis(words=(TimedWord(
+            text=text,
+            start_sample=0,
+            end_sample=len(snapshot),
+            
+        ),))
 
 def test_audio_window_produces_transcript_candidate() -> None:
     async def scenario() -> None:
@@ -100,7 +110,7 @@ def test_rejects_windows_when_queue_is_full() -> None:
 
 def test_reports_recognizer_failures() -> None:
     class BrokenRecognizer:
-        def transcribe(self, samples: Sequence[float]) -> str:
+        def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
             raise RuntimeError("recognition failed")
 
     async def scenario() -> None:

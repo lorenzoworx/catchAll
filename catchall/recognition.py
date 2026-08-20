@@ -9,13 +9,27 @@ from catchall.recognition_window import AudioWindow, RecognitionWindowBuffer
 
 
 @dataclass(frozen=True)
-class TranscriptCandidate:
+class TimedWord:
     text: str
+    start_sample: int
+    end_sample: int
+
+@dataclass(frozen=True)
+class RecognitionHypothesis:
+    words: tuple[TimedWord, ...]
+
+@dataclass(frozen=True)
+class TranscriptCandidate:
+    words: tuple[TimedWord, ...]
     window_start_sample: int
     window_end_sample: int
 
+    @property
+    def text(self) -> str:
+        return " ".join(word.text for word in self.words)
+
 class Recognizer(Protocol):
-    def transcribe(self, samples: Sequence[float]) -> str:
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
         ...
 
 CandidateHandler = Callable[[TranscriptCandidate], None]
@@ -73,21 +87,28 @@ class RecognitionPipeline:
             window = await self._pending.get()
 
             try:
-                text = await asyncio.to_thread(
+                hypothesis = await asyncio.to_thread(
                     self._recognizer.transcribe,
-                    window.samples,
+                    window.samples
                 )
-                text = text.strip()
 
-                if text:
-                    self._on_candidate(TranscriptCandidate(
-                        text=text,
-                        window_start_sample=window.start_sample,
-                        window_end_sample=window.end_sample
-                    ))
+                absolute_words = tuple(TimedWord(
+                    text=word.text,
+                    start_sample=window.start_sample + word.start_sample,
+                    end_sample=window.start_sample + word.end_sample
+                    )
+                    for word in hypothesis.words
+                )
+                if absolute_words:
+                    self._on_candidate(
+                        TranscriptCandidate(
+                            words=absolute_words,
+                            window_start_sample=window.start_sample,
+                            window_end_sample=window.end_sample
+                        )
+                    )
 
-            except Exception as error:  # noqa: BLE001
-                                        # Keep one failed recognition window from terminating the background pipeline
+            except Exception as error: #noqa: BLE001
                 self.failed_windows += 1
 
                 if self._on_error is not None:

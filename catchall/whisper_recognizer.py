@@ -5,6 +5,9 @@ from typing import Any
 
 import numpy as np
 
+from catchall.recognition import RecognitionHypothesis, TimedWord
+from catchall.recognition_window import SAMPLE_RATE
+
 
 class WhisperRecognizer:
     def __init__(
@@ -25,7 +28,7 @@ class WhisperRecognizer:
 
         self._model = model
 
-    def transcribe(self, samples: Sequence[float]) -> str:
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
         audio = np.asarray(samples, dtype=np.float32)
 
         segments, _= self._model.transcribe(
@@ -35,12 +38,22 @@ class WhisperRecognizer:
             temperature=0.0,
             condition_on_previous_text=False,
             vad_filter=False,
+            word_timestamps = True
         )
 
-        text_parts = [
-            segment.text.strip()
-            for segment in segments
-            if segment.text.strip()
-        ]
+        words: list[TimedWord] = []
 
-        return " ".join(text_parts)
+        for segment in segments:
+            for word in segment.words or ():
+                text = word.word.strip()
+
+                if not text:
+                    continue
+
+                words.append(TimedWord(
+                    text=text,
+                    start_sample=int(word.start * SAMPLE_RATE),
+                    end_sample=int(word.end * SAMPLE_RATE),
+                ))
+
+        return RecognitionHypothesis(words=tuple(words))

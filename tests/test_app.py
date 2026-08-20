@@ -6,12 +6,28 @@ from fastapi.testclient import TestClient
 
 from catchall.app import app
 from catchall.audio_protocol import AUDIO_FRAME_TYPE, AUDIO_HEADER
+from catchall.recognition import RecognitionHypothesis, TimedWord
 from catchall.recognizer_provider import RecognizerProvider
 
 
 class FakeRecognizer:
-    def transcribe(self, samples: Sequence[float]) -> str:
-        return "test caption"
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
+        midpoint = len(samples) // 2
+        
+        return RecognitionHypothesis(
+            words=(
+                TimedWord(
+                    text="test",
+                    start_sample=0,
+                    end_sample=midpoint
+                ),
+                TimedWord(
+                    text="caption",
+                    start_sample=midpoint,
+                    end_sample=len(samples)
+                ),
+            )
+        )
 
 app.state.recognizer_provider = RecognizerProvider(
     FakeRecognizer

@@ -4,12 +4,17 @@ from collections.abc import Sequence
 
 import pytest
 
+from catchall.recognition import RecognitionHypothesis, TimedWord
 from catchall.recognizer_provider import RecognizerProvider
 
 
 class FakeRecognizer:
-    def transcribe(self, samples: Sequence[float]) -> str:
-        return "test"
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
+        return RecognitionHypothesis(words=(TimedWord(
+            text="test",
+            start_sample=0,
+            end_sample=len(samples)
+        ),))
 
 def test_loads_recognizer_only_once() -> None:
     async def scenario() -> None:
