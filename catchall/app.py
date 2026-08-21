@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from catchall import _core
 from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
+from catchall.local_agreement import LocalAgreement
 from catchall.recognition import RecognitionPipeline, TranscriptCandidate
 from catchall.recognizer_provider import RecognizerProvider
 from catchall.speech_gate import EnergySpeechGate
@@ -37,6 +38,8 @@ def inded() -> FileResponse:
 @app.websocket("/ws")
 async def caption_socket(websocket: WebSocket) -> None:
     ring = _core.AudioRing(RING_CAPACITY)
+
+    agreement = LocalAgreement()
 
     received_samples = 0
     rejected_frames = 0
@@ -87,10 +90,21 @@ async def caption_socket(websocket: WebSocket) -> None:
     recognition_messages: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
     def on_candidate(candidate: TranscriptCandidate) -> None:
+        result = agreement.update(candidate.words)
+
+        if result.committed:
+            recognition_messages.put_nowait({
+                "type": "caption",
+                "state": "committed",
+                "text": " ".join(word.text for word in result.committed),
+                "start_sample": result.committed[0].start_sample,
+                "end_sample": result.committed[-1].end_sample,
+            })
+
         recognition_messages.put_nowait({
             "type": "caption",
             "state": "provisional",
-            "text": candidate.text,
+            "text": " ".join(word.text for word in result.provisional),
             "window_start_sample": candidate.window_start_sample,
             "window_end_sample": candidate.window_end_sample,
         })
@@ -208,7 +222,8 @@ async def caption_socket(websocket: WebSocket) -> None:
                         "pending_recognition_windows": pipeline.pending_windows,
                         "rejected_recognition_windows": pipeline.rejected_windows,
                         "failed_recognition_windows": pipeline.failed_windows,
-                        "skipped_silence_windows": pipeline.skipped_silence_windows
+                        "skipped_silence_windows": pipeline.skipped_silence_windows,
+                        "committed_words": agreement.committed_word_count,
                     }
                 )
             else:

@@ -69,6 +69,8 @@ def test_homepage() -> None:
     assert 'id="microphone-button"' in response.text
     assert "disabled" in response.text
     assert 'id="recording-status"' in response.text
+    assert 'id="finalized-captions"' in response.text
+    assert 'id="provisional-caption"' in response.text
 
 def test_stylesheet() -> None:
     response = client.get("/static/styles.css")
@@ -120,6 +122,7 @@ def test_websocket_consumes_binary_audio() -> None:
             "rejected_recognition_windows": 0,
             "failed_recognition_windows": 0,
             "skipped_silence_windows": 0,
+            "committed_words": 0,
         }
 
 def test_websocket_rejects_invalid_audio_frame() -> None:
@@ -170,4 +173,52 @@ def test_websocket_emits_provisional_caption() -> None:
             "text": "test caption",
             "window_start_sample": 0,
             "window_end_sample": 16_000,
+        }
+
+def test_websocket_commits_stable_caption_prefix() -> None:
+    samples = [12_000] * 320
+
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        for frame_number in range(75):
+            header = AUDIO_HEADER.pack(
+                AUDIO_FRAME_TYPE,
+                0,
+                len(samples),
+                frame_number * len(samples),
+            )
+            payload = header + struct.pack(
+                f"<{len(samples)}h",
+                *samples,
+            )
+
+            websocket.send_bytes(payload)
+
+        first = websocket.receive_json()
+        committed = websocket.receive_json()
+        provisional = websocket.receive_json()
+
+        assert first == {
+            "type": "caption",
+            "state": "provisional",
+            "text": "test caption",
+            "window_start_sample": 0,
+            "window_end_sample": 16_000,
+        }
+
+        assert committed == {
+            "type": "caption",
+            "state": "committed",
+            "text": "test caption",
+            "start_sample": 0,
+            "end_sample": 16_000,
+        }
+
+        assert provisional == {
+            "type": "caption",
+            "state": "provisional",
+            "text": "",
+            "window_start_sample": 0,
+            "window_end_sample": 24_000,
         }

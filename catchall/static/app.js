@@ -6,12 +6,14 @@ const microphoneButton = document.querySelector("#microphone-button");
 const recordingStatus = document.querySelector("#recording-status");
 const captureDetails = document.querySelector("#capture-details");
 const provisionalCaption = document.querySelector("#provisional-caption");
+const finalizedCaptions = document.querySelector("#finalized-captions");
 
 let audioContext = null;
 let mediaStream = null;
 let mediaSource = null;
 let captureNode = null;
 let socket = null;
+let hasCommittedCaptions = false;
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
@@ -50,13 +52,24 @@ function connect() {
         if (message.type === "error" && message.code === "recognizer_unavailable") {
             recordingStatus.textContent = "Speech recognition unavailable";
             microphoneButton.disabled =true;
+        } 
+
+        if (message.type === "caption" && message.state === "committed") {
+            if (!hasCommittedCaptions) {
+                finalizedCaptions.textContent = "";
+                hasCommittedCaptions = true;
+            }
+
+            const segment = document.createElement("span");
+            segment.textContent = `${message.text} `;
+
+            finalizedCaptions.append(segment);
         }
 
         if (message.type === "caption" && message.state === "provisional") {
             provisionalCaption.textContent = message.text;
         }
 
-        // console.log("Server message", message)
     });
 
     socket.addEventListener("error", () => {
