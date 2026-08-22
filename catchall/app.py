@@ -224,6 +224,8 @@ async def caption_socket(websocket: WebSocket) -> None:
                         "failed_recognition_windows": pipeline.failed_windows,
                         "skipped_silence_windows": pipeline.skipped_silence_windows,
                         "committed_words": agreement.committed_word_count,
+                        "final_silence_windows": pipeline.final_silence_windows,
+                        "silence_boundaries": pipeline.silence_boundaries,
                     }
                 )
             else:

@@ -165,3 +165,20 @@ def test_active_audio_queues_recognition() -> None:
     assert pipeline.accept_audio([0.1] * 4) == 1
     assert pipeline.pending_windows == 1
     assert pipeline.skipped_silence_windows == 0
+
+def test_continuing_silence_does_not_repeat_boundary() -> None:
+    pipeline = RecognitionPipeline(
+        recognizer=FakeRecognizer(),
+        on_candidate=lambda candidate: None,
+        window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2,),
+        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1),
+        max_pending_windows=4,
+    )
+
+    pipeline.accept_audio([0.1] * 4)
+    pipeline.accept_audio([0.0] * 4)
+    pipeline.accept_audio([0.0] * 4)
+
+    assert pipeline.silence_boundaries == 1
+    assert pipeline.final_silence_windows == 1
+    assert pipeline.skipped_silence_windows == 2

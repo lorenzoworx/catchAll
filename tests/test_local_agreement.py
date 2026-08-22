@@ -142,3 +142,66 @@ def test_new_words_commit_after_an_earlier_commit() -> None:
 
     assert texts(result.committed) == ["today"]
     assert texts(result.provisional) == ["again"]
+
+def test_redecoded_last_word_is_not_recommitted() -> None:
+    agreement = LocalAgreement()
+
+    original = (word("me?", 100, 200),)
+
+    agreement.update(original)
+    result = agreement.update(original)
+
+    assert texts(result.committed) == ["me?"]
+
+    # Whisper recognizes the same audio again, but its
+    # timestamp has drifted later.
+    repeated = (word("me?", 150, 230),)
+
+    result = agreement.update(repeated)
+    assert result.committed == ()
+    assert result.provisional == ()
+
+    result = agreement.update(repeated)
+    assert result.committed == ()
+    assert result.provisional == ()
+
+
+def test_genuine_repeated_word_after_boundary_is_kept() -> None:
+    agreement = LocalAgreement()
+
+    original = (word("go", 0, 100),)
+
+    agreement.update(original)
+    agreement.update(original)
+
+    # This repetition starts after the committed boundary,
+    # so it represents genuinely new speech.
+    repeated = (word("go", 110, 200),)
+
+    result = agreement.update(repeated)
+    assert texts(result.provisional) == ["go"]
+
+    result = agreement.update(repeated)
+    assert texts(result.committed) == ["go"]
+
+
+def test_redecoded_committed_suffix_is_removed() -> None:
+    agreement = LocalAgreement()
+
+    original = (
+        word("hello", 0, 100),
+        word("me?", 100, 200),
+    )
+
+    agreement.update(original)
+    agreement.update(original)
+
+    result = agreement.update(
+        (
+            word("me?", 150, 230),
+            word("today", 230, 300),
+        )
+    )
+
+    assert result.committed == ()
+    assert texts(result.provisional) == ["today"]

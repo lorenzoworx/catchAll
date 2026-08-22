@@ -1,3 +1,4 @@
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -31,6 +32,7 @@ class LocalAgreement:
         self._previous: tuple[TimedWord, ...] = ()
         self._committed_through_sample = 0
         self._committed_word_count = 0
+        self._committed_tail: deque[str] = deque(maxlen=8)
 
     @property
     def committed_word_count(self) -> int:
@@ -41,7 +43,9 @@ class LocalAgreement:
         return self._committed_through_sample
 
     def update(self, words: Sequence[TimedWord]) -> AgreementResult:
-        current = tuple(word for word in words if (word.end_sample > self._committed_through_sample))
+        current = self._strip_committed_overlap(tuple(words))
+
+        current = tuple(word for word in current if(word.end_sample > self._committed_through_sample))
 
         if not self._previous:
             self._previous = current
@@ -64,10 +68,41 @@ class LocalAgreement:
                 provisional=current,
             )
 
-        self._committed_word_count += len(committed)
-        self._committed_through_sample = max(self._committed_through_sample, committed[-1].end_sample)
+        self._record_committed(committed)
 
         provisional = current[len(committed) :]
         self._previous = provisional
 
         return AgreementResult(committed=committed, provisional=provisional)
+
+    def _record_committed(self, words: Sequence[TimedWord]) -> None:
+        if not words:
+            return
+
+        self._committed_word_count += len(words)
+        self._committed_through_sample = max(self._committed_through_sample, words[-1].end_sample)
+        self._committed_tail.extend(normalize_word(word.text) for word in words)
+
+    def _strip_committed_overlap(self, words: tuple[TimedWord, ...]) -> tuple[TimedWord, ...]:
+        if not words or not self._committed_tail:
+            return words
+
+        eligible_words = 0
+
+        for word in words:
+            if (word.start_sample < self._committed_through_sample):
+                eligible_words += 1
+            else:
+                break
+
+        committed_tail = tuple(self._committed_tail)
+        maximum_overlap = min(eligible_words, len(committed_tail))
+
+        for overlap in range(maximum_overlap, 0, -1):
+            candidate = tuple(normalize_word(word.text) for word in words[:overlap])
+            committed = committed_tail[-overlap:]
+
+            if candidate == committed:
+                return words[overlap:]
+
+        return words
