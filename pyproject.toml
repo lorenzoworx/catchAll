@@ -24,6 +24,9 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
 ]
+simplification = [
+    "sentence-transformers >=3.0"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
