@@ -1,0 +1,62 @@
+[
+    {
+        "id": "meeting-synonym",
+        "safe": true,
+        "original": "The meeting begins at noon.",
+        "candidate": "The meeting starts at noon."
+    },
+    {
+        "id": "form-deadline",
+        "safe": true,
+        "original": "Please submit the form before Friday.",
+        "candidate": "Send in the form by Friday."
+    },
+    {
+        "id": "local-caption-model",
+        "safe": true,
+        "original": "The application uses a local model to create captions.",
+        "candidate": "A local model create captions for the application."
+    },
+    {
+        "id": "restart-duration",
+        "safe": true,
+        "original": "The device needs five minutes to restart.",
+        "candidate": "Restarting the device takes five minutes."
+    },
+    {
+        "id": "noisy-room",
+        "safe": true,
+        "original": "Because the room was noisy, the speaker moved closer to the microphone",
+        "candidate": "The speaker moved nearer to the microphone because the room was noisy."
+    },
+    {
+        "id": "before-after",
+        "safe": false,
+        "original": "The meeting begins before lunch.",
+        "candidate": "The meeting begins after lunch."
+    },
+    {
+        "id": "subject-object-swap",
+        "safe": false,
+        "original": "Yesterday, Alex gave Jordan the report.",
+        "candidate": "Yesterday, Jordan gave Alex the report."
+    },
+    {
+        "id": "start-stop",
+        "safe": false,
+        "original": "The blue button starts recording.",
+        "candidate": "The blue button sops recording."
+    },
+    {
+        "id": "direction-reversal",
+        "safe": false,
+        "original": "The browser sends audio to the server.",
+        "candidate": "The server sends audio to the broswer."
+    },
+    {
+        "id": "retention-change",
+        "safe": false,
+        "original": "Captions are deleted when the session ends.",
+        "candidate": "Captions are stored when the session ends."
+    }
+]
