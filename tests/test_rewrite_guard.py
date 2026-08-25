@@ -42,56 +42,53 @@ def test_accepts_rewrite_that_preserves_details() -> None:
 def test_rejects_changed_number() -> None:
     guard = FaithfulnessGuard()
 
-    assert (
-        guard.accepts(
-            "The balance is $2,000",
-            "The balance is $2,500",
-        )
-        is False
-    )
+    assert guard.accepts(
+        "The balance is $2,000",
+        "The balance is $2,500",
+    ) is False
 
 def test_rejects_changed_date() -> None:
     guard = FaithfulnessGuard()
 
-    assert(guard.accepts(
+    assert guard.accepts(
         "The appointment is on August 14.",
         "The appointment is on August 13."
     ) is False
-    )
+    
 
 def test_rejects_changed_name() -> None:
     guard = FaithfulnessGuard()
 
-    assert(guard.accepts(
+    assert guard.accepts(
         "Please contact Steven Archer.",
         "Please contact Saul Archer."
     ) is False
-    )
+    
 
 def test_rejects_removed_negation() -> None:
     guard = FaithfulnessGuard()
 
-    assert(guard.accepts(
+    assert guard.accepts(
         "The service is not available.",
         "The service is available."
     ) is False
-    )
+    
 
 def test_rejects_added_negation() -> None:
     guard = FaithfulnessGuard()
 
-    assert(guard.accepts(
+    assert guard.accepts(
         "The service is available.",
         "The service is not available."
     ) is False
-    )
+    
 
 def test_allows_text_without_changed_protected_details() -> None:
     guard = FaithfulnessGuard()
 
-    assert (guard.accepts(
+    assert guard.accepts(
         "People need captions that are easy to read.",
         "Clear captions help people understand",
     ) is True
-    )
+    
 

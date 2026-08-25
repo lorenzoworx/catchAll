@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
+from typing import Protocol
 
 NUMBER_PATTERN = re.compile(
     r"(?<!\w)[$£€]?[+-]?\d+(?:,\d{3})*(?:\.\d+)?"
@@ -117,3 +119,37 @@ class FaithfulnessGuard:
             and extract_names(original) == extract_names(candidate)
             and extract_negations(original) == extract_negations(candidate)
         )
+
+class Guard(Protocol):
+    def accepts(self, original: str, candidate: str) -> bool:
+        """Return whether a rewrite is safe to display."""
+
+class SimilarityScorer(Protocol):
+    def score(self, originial: str, candidate: str) -> float:
+        """Return semantic similarity bettween zero and one."""
+
+class SemanticSimilarityGuard:
+    def __init__(self, scorer: SimilarityScorer, minimum_similarity: float = 0.80) -> None:
+        if not 0.0 <= minimum_similarity <= 1.0:
+            raise ValueError("minimum_similarity must be between zero and one")
+
+        self._scorer = scorer
+        self.minimum_similarity = minimum_similarity
+
+    def accepts(self, original: str, candidate: str) -> bool:
+        try:
+            similarity = float(self._scorer.score(original, candidate))
+        except Exception:   # noqa: BLE001
+            return False
+
+        return (math.isfinite(similarity) and similarity >= self.minimum_similarity)
+
+class CompositeGuard:
+    def __init__(self, *guards: Guard) -> None:
+        if not guards:
+            raise ValueError("at least one guard is required")
+
+        self._guards = guards
+
+    def accepts(self, original: str, candidate: str) -> bool:
+        return all(guard.accepts(original, candidate) for guard in self._guards)
