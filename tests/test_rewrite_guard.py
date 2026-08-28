@@ -1,4 +1,5 @@
 from catchall.rewrite_guard import (
+    ContrastGuard,
     FaithfulnessGuard,
     extract_dates,
     extract_names,
@@ -33,7 +34,7 @@ def test_accepts_rewrite_that_preserves_details() -> None:
         "on August 14."
     )
     candidate = (
-        "Dr. Steven Archer won't make the $2,000 payment"
+        "Dr. Steven Archer won't make the $2,000 payment "
         "on August 14."
     )
 
@@ -91,4 +92,34 @@ def test_allows_text_without_changed_protected_details() -> None:
         "Clear captions help people understand",
     ) is True
     
+def test_rejects_explicit_start_stop_reversal() -> None:
+    guard = ContrastGuard()
 
+    assert guard.accepts("The blue button starts recording.", "The blue button stops recording.") is False
+
+def test_accepts_synonyms_on_same_contrast_side() -> None:
+    guard = ContrastGuard()
+
+    assert guard.accepts("The meeting begins at noon.", "The meeting starts at noon.") is True
+
+def test_rejects_before_after_reversal() -> None:
+    guard = ContrastGuard()
+
+    assert guard.accepts("The meeting begins before lunch.", "The meeting begins after lunch.") is False
+
+def test_rejects_storage_deletion_reversal() -> None:
+    guard = ContrastGuard()
+
+    assert guard.accepts("Captions are deleted after the session.", "Captions are stored after the session") is False
+
+def test_allows_contrast_term_to_be_rephrased() -> None:
+    guard = ContrastGuard()
+
+    assert guard.accepts("Submit the form before Friday.", "Send in the form by Friday.") is True
+
+def test_allows_sentence_containing_both_sides() -> None:
+    guard = ContrastGuard()
+
+    sentence = "You can start and stop recording."
+
+    assert guard.accepts(sentence, sentence) is True

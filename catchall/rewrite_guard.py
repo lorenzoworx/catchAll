@@ -32,6 +32,174 @@ TITLED_NAME_PATTERN = re.compile(
     r"([A-Z][A-Za-z'’-]+)"
 )
 
+CONTRAST_PAIRS = (
+    (
+        frozenset(
+            {
+                "begin",
+                "begins",
+                "began",
+                "beginning",
+                "start",
+                "starts",
+                "started",
+                "starting"
+            }
+        ),
+        frozenset(
+            {
+                "stop",
+                "stops",
+                "stopped",
+                "stopping",
+                "end",
+                "ends",
+                "ended",
+                "ending"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "before",
+                "earlier",
+                "prior"
+            }
+        ),
+        frozenset(
+            {
+                "after",
+                "later",
+                "following"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "enable",
+                "enabled",
+                "allow",
+                "allowed",
+                "permit",
+                "permitted"
+            }
+        ),
+        frozenset(
+            {
+                "disable",
+                "disabled",
+                "block",
+                "blocked",
+                "deny",
+                "denied",
+                "prohibit",
+                "prohibited"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "increase",
+                "increased",
+                "raise",
+                "raised",
+                "grow",
+                "grew"
+            }
+        ),
+        frozenset(
+            {
+                "decrease",
+                "decreased",
+                "lower",
+                "lowered",
+                "reduce",
+                "reduced"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "save",
+                "saved",
+                "store",
+                "stored",
+                "retain",
+                "retained",
+                "keep",
+                "kept"
+            }
+        ),
+        frozenset(
+            {
+                "delete",
+                "deleted",
+                "discard",
+                "discarded",
+                "erase",
+                "erased",
+                "remove",
+                "removed"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "open",
+                "opened"
+            }
+        ),
+        frozenset(
+            {
+                "close",
+                "closed",
+                "shut"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "connect",
+                "connected",
+                "join",
+                "joined"
+            }
+        ),
+        frozenset(
+            {
+                "disconnect",
+                "disconnected",
+                "leave",
+                "left"
+            }
+        )
+    ),
+    (
+        frozenset(
+            {
+                "accept",
+                "accepted",
+                "approve",
+                "approved"
+            }
+        ),
+        frozenset(
+            {
+                "reject",
+                "rejected",
+                "decline",
+                "declined"
+            }
+        )
+    )
+)
+
 DATE_WORDS = {
     "january",
     "february",
@@ -143,6 +311,30 @@ class SemanticSimilarityGuard:
             return False
 
         return (math.isfinite(similarity) and similarity >= self.minimum_similarity)
+
+class ContrastGuard:
+    def accepts(self, original: str, candidate: str) -> bool:
+        original_tokens = {match.group(0).casefold() for match in WORD_PATTERN.finditer(original)}
+        candidate_tokens = {match.group(0).casefold() for match in WORD_PATTERN.finditer(candidate)}
+
+        for left_terms, right_terms in CONTRAST_PAIRS:
+            original_side = self._side(original_tokens, left_terms, right_terms)
+            candidate_side = self._side(candidate_tokens, left_terms, right_terms)
+
+            if (original_side != 0 and candidate_side != 0 and original_side != candidate_side):
+                return False
+
+        return True
+
+    @staticmethod
+    def _side(tokens: set[str], left_terms: frozenset[str], right_terms: frozenset[str]) -> int:
+        contains_left = not tokens.isdisjoint(left_terms)
+        contains_right = not tokens.isdisjoint(right_terms)
+
+        if contains_left == contains_right:
+            return 0
+
+        return 1 if contains_left else -1
 
 class CompositeGuard:
     def __init__(self, *guards: Guard) -> None:

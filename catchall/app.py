@@ -10,8 +10,12 @@ from catchall import _core
 from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
 from catchall.local_agreement import LocalAgreement
+from catchall.plain_language import RuleBasedSimplifier
 from catchall.recognition import RecognitionPipeline, TranscriptCandidate
 from catchall.recognizer_provider import RecognizerProvider
+from catchall.rewrite_guard import CompositeGuard, ContrastGuard, FaithfulnessGuard
+from catchall.sentence_assembler import SentenceAssembler
+from catchall.simplification import SimplificationPipeline, SimplificationResult
 from catchall.speech_gate import EnergySpeechGate
 from catchall.whisper_recognizer import WhisperRecognizer
 
@@ -89,6 +93,26 @@ async def caption_socket(websocket: WebSocket) -> None:
 
     recognition_messages: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
+    plain_language_enabled = False
+    sentence_assembler = SentenceAssembler()
+
+    def on_simplification_result(result: SimplificationResult) -> None:
+        recognition_messages.put_nowait({
+          "type": "plain_caption",
+            "sentence_id": result.sentence_id,
+            "text": result.text,
+            "original": result.original,
+            "status": result.status,
+            "start_sample": result.start_sample,
+            "end_sample": result.end_sample,  
+        })
+
+    simplification_pipeline = SimplificationPipeline(
+        simplifier=RuleBasedSimplifier(),
+        guard=CompositeGuard(FaithfulnessGuard(), ContrastGuard()),
+        on_result=on_simplification_result,
+    )
+
     def on_candidate(candidate: TranscriptCandidate) -> None:
         result = agreement.update(candidate.words)
 
@@ -100,6 +124,12 @@ async def caption_socket(websocket: WebSocket) -> None:
                 "start_sample": result.committed[0].start_sample,
                 "end_sample": result.committed[-1].end_sample,
             })
+
+        completed_sentences = sentence_assembler.add(result.committed)
+
+        if plain_language_enabled:
+            for sentence in completed_sentences:
+                simplification_pipeline.accept(sentence)
 
         recognition_messages.put_nowait({
             "type": "caption",
@@ -144,6 +174,7 @@ async def caption_socket(websocket: WebSocket) -> None:
     tasks = [
         asyncio.create_task(consumer.run()),
         asyncio.create_task(pipeline.run()),
+        asyncio.create_task(simplification_pipeline.run()),
         asyncio.create_task(forward_recognition_messages()),
     ]
 
@@ -226,8 +257,30 @@ async def caption_socket(websocket: WebSocket) -> None:
                         "committed_words": agreement.committed_word_count,
                         "final_silence_windows": pipeline.final_silence_windows,
                         "silence_boundaries": pipeline.silence_boundaries,
+                        "plain_language_enabled": plain_language_enabled,
+                        "processed_plain_sentences": simplification_pipeline.processed_sentences,
+                        "fallback_plain_sentences": simplification_pipeline.fallback_sentences,
+                        "rejected_plain_sentences": simplification_pipeline.rejected_sentences
                     }
                 )
+            elif message.get("type") == "plain_language":
+                enabled = message.get("enabled")
+
+                if not isinstance(enabled, bool):
+                    await send_message({
+                        "type": "error",
+                        "code": "invalid_plain_language_setting",
+                        "message": "enabled must be a boolean."
+                    })
+                    continue
+
+                plain_language_enabled = enabled
+
+                await send_message({
+                    "type": "plain_language",
+                    "enabled": plain_language_enabled,
+                    "processing": "local"
+                })
             else:
                 await send_message(
                     {

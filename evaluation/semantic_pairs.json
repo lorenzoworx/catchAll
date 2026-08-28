@@ -45,7 +45,7 @@
         "id": "start-stop",
         "safe": false,
         "original": "The blue button starts recording.",
-        "candidate": "The blue button sops recording."
+        "candidate": "The blue button stops recording."
     },
     {
         "id": "direction-reversal",

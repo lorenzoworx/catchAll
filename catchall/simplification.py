@@ -55,6 +55,12 @@ class SimplificationPipeline:
             self._queue.put_nowait(sentence)
         except asyncio.QueueFull:
             self.rejected_sentences += 1
+            self.fallback_sentences += 1
+
+            sentence_id = f"sentence-{sentence.start_sample}-{sentence.end_sample}"
+
+            self._on_result(self._fallback(sentence, sentence_id))
+
             return False
 
         return True

@@ -71,6 +71,10 @@ def test_homepage() -> None:
     assert 'id="recording-status"' in response.text
     assert 'id="finalized-captions"' in response.text
     assert 'id="provisional-caption"' in response.text
+    assert 'id="plain-language-toggle"' in response.text
+    assert 'id="plain-language-status"' in response.text
+    assert 'id="plain-language-captions"' in response.text
+    assert "processed locally" in response.text
 
 def test_stylesheet() -> None:
     response = client.get("/static/styles.css")
@@ -94,6 +98,8 @@ def test_javascript_is_served() -> None:
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+    assert '"plain_language"' in response.text
+    assert '"plain_caption"' in response.text
 
 def test_websocket_consumes_binary_audio() -> None:
     samples = [0] * 320
@@ -125,6 +131,10 @@ def test_websocket_consumes_binary_audio() -> None:
             "committed_words": 0,
             "final_silence_windows": 0,
             "silence_boundaries": 0,
+            "plain_language_enabled": False,
+            "processed_plain_sentences": 0,
+            "fallback_plain_sentences": 0,
+            "rejected_plain_sentences": 0
         }
 
 def test_websocket_rejects_invalid_audio_frame() -> None:
@@ -285,4 +295,45 @@ def test_silence_runs_final_recognition_pass() -> None:
             "text": "",
             "window_start_sample": 0,
             "window_end_sample": 24_000
+        }
+
+def test_plain_language_is_optional() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        websocket.send_json({
+            "type": "plain_language",
+            "enabled": True
+        })
+
+        assert websocket.receive_json() == {
+            "type": "plain_language",
+            "enabled": True,
+            "processing": "local"
+        }
+
+        websocket.send_json({
+            "type": "plain_language",
+            "enabled": False
+        })
+
+        assert websocket.receive_json() == {
+            "type": "plain_language",
+            "enabled": False,
+            "processing": "local"
+        }
+
+def test_plain_language_setting_requires_boolean() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        websocket.send_json({
+            "type": "plain_language",
+            "enabled": "yes"
+        })
+
+        assert websocket.receive_json() == {
+            "type": "error",
+            "code": "invalid_plain_language_setting",
+            "message": "enabled must be a boolean."
         }

@@ -38,18 +38,33 @@
                     </section>
 
                     <section class="lane" aria-labelledby="plain-heading">
-                        <h2 id="plain-heading">Plain-Language Captions <span class="optional-tag">(optional)</span></h2>
+                        <h2 id="plain-heading">
+                            Plain-Language Captions
+                            <span class="optional-tag">(optional)</span>
+                        </h2>
+
+                        <div class="plain-language-controls">
+                            <input id="plain-language-toggle" type="checkbox" disabled>
+                            <label for="plain-language-toggle">
+                                Show plain-language captions
+                            </label>
+                            <p id="plain-language-status" role="status" aria-live="polite">
+                                Off. Connect to enable.
+                            </p>
+                        </div>
 
                         <div class="caption-region">
                             <h3>Simplified Captions</h3>
-                            <p class="caption-text">Plain-language captions will appear after text is finalized.</p>
+                            <p id="plain-language-captions" class="caption-text" role="log" aria-live="polite" aria-relevant="additions">
+                                Plain-language captions are off
+                            </p>
                         </div>
                     </section>
                 </div>
             </main>
 
             <footer class="site-footer">
-                <p>CatchAll does not store audio or transcripts. Optional plain-language processing may send finalized text to a configured provider.</p>
+                <p>CatchAll does not store audio or transcripts. Verbatim captions and optional plain-language captions are processed locally.</p>
             </footer>
                 
         </div>

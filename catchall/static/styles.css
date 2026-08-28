@@ -76,6 +76,24 @@ body {
     font-weight: normal;
 }
 
+.plain-language-controls {
+    margin-bottom: 1.25rem;
+}
+
+.plain-language-controls label {
+    font-weight: 600;
+}
+
+#plain-language-status {
+    margin-top: 0.5rem;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+#plain-language-toggle:disabled + label {
+    color: #666;
+}
+
 @media (max-width: 700px) {
     .lanes{
         flex-direction: column;

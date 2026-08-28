@@ -7,6 +7,9 @@ const recordingStatus = document.querySelector("#recording-status");
 const captureDetails = document.querySelector("#capture-details");
 const provisionalCaption = document.querySelector("#provisional-caption");
 const finalizedCaptions = document.querySelector("#finalized-captions");
+const plainLanguageToggle = document.querySelector("#plain-language-toggle");
+const plainLanguageStatus = document.querySelector("#plain-language-status");
+const plainLanguageCaptions = document.querySelector("#plain-language-captions");
 
 let audioContext = null;
 let mediaStream = null;
@@ -14,6 +17,8 @@ let mediaSource = null;
 let captureNode = null;
 let socket = null;
 let hasCommittedCaptions = false;
+let plainLanguageEnabled = false;
+let hasPlainLanguageCaptions = false;
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
@@ -47,11 +52,15 @@ function connect() {
         if (message.type === "recognizer" && message.status == "ready") {
             recordingStatus.textContent = "Microphone ready";
             microphoneButton.disabled = false;
+            plainLanguageToggle.disabled = false;
+            plainLanguageStatus.textContent = "Off. Plain-language processing is local."
         }
 
         if (message.type === "error" && message.code === "recognizer_unavailable") {
             recordingStatus.textContent = "Speech recognition unavailable";
             microphoneButton.disabled =true;
+            plainLanguageToggle.checked = false;
+            plainLanguageToggle.disabled = true;
         } 
 
         if (message.type === "caption" && message.state === "committed") {
@@ -70,6 +79,42 @@ function connect() {
             provisionalCaption.textContent = message.text;
         }
 
+        if (message.type === "plain_language") {
+            plainLanguageEnabled = message.enabled;
+            plainLanguageToggle.checked = message.enabled;
+            plainLanguageToggle.disabled = false;
+
+            if (plainLanguageEnabled) {
+                plainLanguageStatus.textContent = "On. Finalized sentences are rewritten locally.";
+
+                if(!hasPlainLanguageCaptions) {
+                    plainLanguageCaptions.textContent = "Waiting for a finalized sentence...";
+                }
+            } else {
+                plainLanguageStatus.textContent = "Off. Plain-language processing is local.";
+                plainLanguageCaptions.textContent = "Plain-language captions are off.";
+                hasPlainLanguageCaptions = false;
+            }
+
+        }
+
+        if (message.type === "plain_caption" && plainLanguageEnabled) {
+            if (!hasPlainLanguageCaptions) {
+                plainLanguageCaptions.textContent = "";
+                hasPlainLanguageCaptions = true;
+            }
+
+            const segment = document.createElement("span");
+            segment.textContent = `${message.text} `;
+            segment.dataset.status = message.status;
+
+            if (message.status === "fallback") {
+                segment.title = "The plain-language rewrite was rejected; " + "this is the verbatim sentence.";
+            }
+
+            plainLanguageCaptions.append(segment);
+        }
+
     });
 
     socket.addEventListener("error", () => {
@@ -80,8 +125,28 @@ function connect() {
         setConnectionStatus("Disconnected");
         socket = null;
         microphoneButton.disabled = true;
+        plainLanguageEnabled = false;
+        plainLanguageToggle.checked = false;
+        plainLanguageToggle.disabled = true;
+        plainLanguageStatus.textContent = "Unavailable while disconnected.";
+        plainLanguageCaptions.textContent = "Plain-language captions are off.";
+        hasPlainLanguageCaptions = false;
     });
 }
+
+plainLanguageToggle.addEventListener("change", () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        plainLanguageToggle.checked = plainLanguageEnabled;
+        return
+    }
+
+    plainLanguageToggle.disabled = true;
+
+    socket.send(JSON.stringify({
+        type: "plain_language",
+        enabled: plainLanguageToggle.checked,
+    }));
+});
 
 connect();
 
