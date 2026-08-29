@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, Protocol
 
 import numpy as np
@@ -48,16 +49,15 @@ class BidirectionalNliScorer:
         self.model_name = model_name
         self._model_factory = model_factory
         self._model: NliModel | None = None
+        self._model_lock = Lock()
+        self._prediction_lock = Lock()
 
     def score(self, original: str, candidate: str) -> BidirectionalNliResult:
         model = self._get_model()
-        logits = np.asarray(
-            model.predict(
-                [(original, candidate), (candidate, original)],
-                show_progress_bar=False,
-            ),
-            dtype=float,
-        )
+        with self._prediction_lock:
+            raw_logits = model.predict([(original, candidate), (candidate, original)], show_progress_bar=False)
+
+            logits = np.asarray(raw_logits, dtype=float)
 
         if logits.shape != (2, 3):
             raise ValueError("NLI model must return a 2 by 3 score matrix")
@@ -73,10 +73,16 @@ class BidirectionalNliScorer:
         )
 
     def _get_model(self) -> NliModel:
-        if self._model is None:
-            self._model = self._model_factory(self.model_name)
+        model = self._model
 
-        return self._model
+        if model is not None:
+            return model
+
+        with self._model_lock:
+            if self._model is None:
+                self._model = self._model_factory(self.model_name)
+
+            return self._model
 
     @staticmethod
     def _softmax(logits: np.ndarray) -> np.ndarray:

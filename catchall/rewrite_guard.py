@@ -5,6 +5,8 @@ import re
 from collections import Counter
 from typing import Protocol
 
+from catchall.nli import BidirectionalNliResult
+
 NUMBER_PATTERN = re.compile(
     r"(?<!\w)[$£€]?[+-]?\d+(?:,\d{3})*(?:\.\d+)?"
     r"(?:%|st|nd|rd|th)?(?!\w)"
@@ -345,3 +347,29 @@ class CompositeGuard:
 
     def accepts(self, original: str, candidate: str) -> bool:
         return all(guard.accepts(original, candidate) for guard in self._guards)
+
+class NliScorer(Protocol):
+    def score(self, original: str, candidate: str) -> BidirectionalNliResult:
+        """Evaluate both entailment directions."""
+
+class BidirectionalEntailmentGuard:
+    def __init__(self, scorer: NliScorer, minimum_entailment: float = 0.80, maximum_contradiction: float = 0.20) -> None:
+        if not 0.0 <= minimum_entailment <= 1.0:
+            raise ValueError("minimum_entailment must be between zero and one")
+
+        if not 0.0 <= maximum_contradiction <= 1.0:
+            raise ValueError("maximum_contradiction must be between zero and one")
+
+        self._scorer = scorer
+        self.minimum_entailment = minimum_entailment
+        self.maximum_contradiction = maximum_contradiction
+
+    def accepts(self, original: str, candidate: str) -> bool:
+        try:
+            result = self._scorer.score(original, candidate)
+        except Exception:   # noqa: BLE001
+            return False
+
+        directions = (result.original_to_candidate, result.candidate_to_original)
+
+        return all(direction.entailment >= self.minimum_entailment and direction.contradiction <= self.maximum_contradiction for direction in directions)

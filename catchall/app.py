@@ -10,10 +10,16 @@ from catchall import _core
 from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
 from catchall.local_agreement import LocalAgreement
+from catchall.nli import BidirectionalNliScorer
 from catchall.plain_language import RuleBasedSimplifier
 from catchall.recognition import RecognitionPipeline, TranscriptCandidate
 from catchall.recognizer_provider import RecognizerProvider
-from catchall.rewrite_guard import CompositeGuard, ContrastGuard, FaithfulnessGuard
+from catchall.rewrite_guard import (
+    BidirectionalEntailmentGuard,
+    CompositeGuard,
+    ContrastGuard,
+    FaithfulnessGuard,
+)
 from catchall.sentence_assembler import SentenceAssembler
 from catchall.simplification import SimplificationPipeline, SimplificationResult
 from catchall.speech_gate import EnergySpeechGate
@@ -22,6 +28,17 @@ from catchall.whisper_recognizer import WhisperRecognizer
 SAMPLE_RATE = 16_000
 RING_SECONDS = 10
 RING_CAPACITY = SAMPLE_RATE * RING_SECONDS
+_SHARED_NLI_SCORER = BidirectionalNliScorer()
+
+_SHARED_PLAIN_LANGUAGE_GUARD = CompositeGuard(
+    FaithfulnessGuard(),
+    ContrastGuard(),
+    BidirectionalEntailmentGuard(
+        scorer=_SHARED_NLI_SCORER,
+        minimum_entailment=0.80,
+        maximum_contradiction=0.20
+    )
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -109,7 +126,7 @@ async def caption_socket(websocket: WebSocket) -> None:
 
     simplification_pipeline = SimplificationPipeline(
         simplifier=RuleBasedSimplifier(),
-        guard=CompositeGuard(FaithfulnessGuard(), ContrastGuard()),
+        guard=_SHARED_PLAIN_LANGUAGE_GUARD,
         on_result=on_simplification_result,
     )
 
