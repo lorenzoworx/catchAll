@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint:js": "eslint catchall/static tests",
-    "test:js": "node --test tests/test_*.js"
+    "test:js": "node --test tests/test_resampler.js tests/test_transcript_export.js"
   },
   "repository": {
     "type": "git",

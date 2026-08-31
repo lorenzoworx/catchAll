@@ -75,6 +75,8 @@ def test_homepage() -> None:
     assert 'id="plain-language-status"' in response.text
     assert 'id="plain-language-captions"' in response.text
     assert "processed locally" in response.text
+    assert 'id="export-button"' in response.text
+    assert 'id="export-status"' in response.text
 
 def test_stylesheet() -> None:
     response = client.get("/static/styles.css")
@@ -337,3 +339,10 @@ def test_plain_language_setting_requires_boolean() -> None:
             "code": "invalid_plain_language_setting",
             "message": "enabled must be a boolean."
         }
+
+def test_transcript_export_javascript_is_served() -> None:
+    response = client.get("/static/transcript-export.js")
+
+    assert response.status_code == 200
+    assert "buildTranscriptDocument" in response.text
+    assert "formatTranscriptText" in response.text

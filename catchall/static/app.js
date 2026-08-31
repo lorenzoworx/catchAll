@@ -1,4 +1,9 @@
 import { buildAudioFrame } from "./audio-protocol.js";
+import {
+    buildTranscriptDocument,
+    formatTranscriptText,
+    makeTranscriptFilename,
+} from "./transcript-export.js";
 
 const connectionStatus = document.querySelector("#connection-status");
 
@@ -10,6 +15,11 @@ const finalizedCaptions = document.querySelector("#finalized-captions");
 const plainLanguageToggle = document.querySelector("#plain-language-toggle");
 const plainLanguageStatus = document.querySelector("#plain-language-status");
 const plainLanguageCaptions = document.querySelector("#plain-language-captions");
+const exportButton = document.querySelector("#export-button");
+const exportStatus = document.querySelector("#export-status");
+
+const committedTranscriptSegments = [];
+const plainTranscriptCaptions = new Map();
 
 let audioContext = null;
 let mediaStream = null;
@@ -73,6 +83,13 @@ function connect() {
             segment.textContent = `${message.text} `;
 
             finalizedCaptions.append(segment);
+            committedTranscriptSegments.push({
+                text: message.text,
+                startSample: message.start_sample,
+                endSample: message.end_sample,
+            });
+
+            exportButton.disabled = false;
         }
 
         if (message.type === "caption" && message.state === "provisional") {
@@ -113,6 +130,21 @@ function connect() {
             }
 
             plainLanguageCaptions.append(segment);
+
+            if (message.status === "simplified") {
+                plainTranscriptCaptions.set(
+                    message.sentence_id,
+                    {
+                        original: message.original,
+                        text: message.text,
+                        status: message.status,
+                        startSample: message.start_sample,
+                        endSample: message.end_sample,
+                    }
+                );
+            } else {
+                plainTranscriptCaptions.delete(message.sentence_id);
+            }
         }
 
     });
@@ -132,6 +164,31 @@ function connect() {
         plainLanguageCaptions.textContent = "Plain-language captions are off.";
         hasPlainLanguageCaptions = false;
     });
+
+    exportButton.addEventListener("click", () => {
+        const transcript = buildTranscriptDocument({
+            committedSegments: committedTranscriptSegments,
+            plainCaptions: [...plainTranscriptCaptions.values()]
+        });
+
+        const contents = formatTranscriptText(transcript);
+        const blob = new Blob(
+            [contents],
+            {
+                type: "text/plain;charset=utf-8",
+            },
+        );
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = url;
+        downloadLink.download = makeTranscriptFilename();
+        document.body.append(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
+        url.revokeObjectURL(url);
+
+        exportStatus.textContent = `Exported ${transcript.finalizedSegments.length} finalized segments.`;
+    })
 }
 
 plainLanguageToggle.addEventListener("change", () => {
