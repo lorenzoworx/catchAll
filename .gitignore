@@ -21,3 +21,6 @@ dist/
 
 node_modules/
 .vscode
+
+evaluation/raw/
+evaluation/corpus/*.wav
