@@ -43,9 +43,9 @@ class LocalAgreement:
         return self._committed_through_sample
 
     def update(self, words: Sequence[TimedWord]) -> AgreementResult:
-        current = self._strip_committed_overlap(tuple(words))
+        current = tuple(word for word in words if(word.end_sample > self._committed_through_sample))
 
-        current = tuple(word for word in current if(word.end_sample > self._committed_through_sample))
+        current = self._strip_committed_overlap(current)
 
         if not self._previous:
             self._previous = current

@@ -205,3 +205,23 @@ def test_redecoded_committed_suffix_is_removed() -> None:
 
     assert result.committed == ()
     assert texts(result.provisional) == ["today"]
+
+def test_redecoded_boundary_word_after_revised_old_prefix_is_removed() -> None:
+    agreement = LocalAgreement()
+
+    original = (
+        word("original", 0, 100),
+        word("voice", 100, 200),
+    )
+
+    agreement.update(original)
+    agreement.update(original)
+
+    result = agreement.update((
+        word("revised", 0, 100),
+        word("voice", 150, 230),
+        word("today", 230, 300),
+    ))
+
+    assert result.committed == ()
+    assert texts(result.provisional) == ["today"]
