@@ -21,6 +21,7 @@ from catchall.rewrite_guard import (
     FaithfulnessGuard,
 )
 from catchall.sentence_assembler import SentenceAssembler
+from catchall.settings import RecognitionSettings
 from catchall.simplification import SimplificationPipeline, SimplificationResult
 from catchall.speech_gate import EnergySpeechGate
 from catchall.whisper_recognizer import WhisperRecognizer
@@ -42,9 +43,18 @@ _SHARED_PLAIN_LANGUAGE_GUARD = CompositeGuard(
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+def create_whisper_recognizer() -> WhisperRecognizer:
+    settings = RecognitionSettings.from_environment()
+
+    return WhisperRecognizer(
+        model_name=settings.model_name,
+        device=settings.device,
+        compute_type=settings.compute_type,
+    )
+
 app = FastAPI(title="CatchAll")
 app.state.recognizer_provider = RecognizerProvider(
-    WhisperRecognizer
+    create_whisper_recognizer
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -101,12 +111,21 @@ async def caption_socket(websocket: WebSocket) -> None:
         await websocket.close(code=1011)
         return
 
-    await send_message(
-        {
-            "type": "recognizer",
-            "status": "ready",
-        }
+    ready_message: dict[str, object] = {
+        "type": "recognizer",
+        "status": "ready",
+    }
+
+    configuration = getattr(
+        recognizer,
+        "configuration",
+        None,
     )
+
+    if isinstance(configuration, dict):
+        ready_message["configuration"] = configuration
+
+    await send_message(ready_message)
 
     recognition_messages: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 

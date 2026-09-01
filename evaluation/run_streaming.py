@@ -35,6 +35,7 @@ class StreamState:
     recognition_lags: list[int] = field(default_factory=list)
     errors: list[dict[str, Any]] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
+    recognizer_configuration: dict[str, Any] = field(default_factory=dict)
 
 
 def load_pcm16_mono(path: Path) -> bytes:
@@ -60,6 +61,12 @@ async def receive_messages(websocket: Any, state: StreamState) -> None:
         message_type = message.get("type")
 
         if (message_type == "recognizer" and message.get("status") == "ready"):
+            state.ready.set()
+            configuration = message.get("configuration")
+
+            if isinstance(configuration, dict):
+                state.recognizer_configuration = configuration
+
             state.ready.set()
             continue
 
@@ -248,6 +255,7 @@ async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) ->
         "post_commit_retractions": 0,
         "server_stats": state.stats,
         "server_errors": state.errors,
+        "recognizer": state.recognizer_configuration,
     }
 
 
@@ -351,6 +359,7 @@ async def run(args: argparse.Namespace) -> None:
         "realtime": not args.no_realtime,
         "summary": summarize(results),
         "clips": results,
+        "recognizer": results[0]["recognizer"],
     }
 
     args.results.mkdir(

@@ -17,6 +17,10 @@ class WhisperRecognizer:
             compute_type: str = "int8",
             model: Any | None = None,
     ) -> None:
+        self.model_name = model_name
+        self.device = device
+        self.compute_type = compute_type
+
         if model is None:
             from faster_whisper import WhisperModel
 
@@ -57,3 +61,11 @@ class WhisperRecognizer:
                 ))
 
         return RecognitionHypothesis(words=tuple(words))
+
+    @property
+    def configuration(self) -> dict[str, str]:
+        return {
+            "model_name": self.model_name,
+            "device": self.device,
+            "compute_type": self.compute_type,
+        }

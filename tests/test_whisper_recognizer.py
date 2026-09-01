@@ -90,3 +90,19 @@ def test_ignores_empty_segments() -> None:
     result = recognizer.transcribe([0.0])
 
     assert result.words == ()
+
+def test_reports_recognizer_configuration() -> None:
+    model = FakeModel([])
+
+    recognizer = WhisperRecognizer(
+        model_name="base.en",
+        device="cpu",
+        compute_type="int8",
+        model=model,
+    )
+
+    assert recognizer.configuration == {
+        "model_name": "base.en",
+        "device": "cpu",
+        "compute_type": "int8",
+    }
