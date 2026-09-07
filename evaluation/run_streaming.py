@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
+import struct
 import time
 import wave
 from contextlib import suppress
@@ -20,16 +22,20 @@ from evaluation.metrics import normalize_words, percentile, word_errors
 SAMPLE_RATE = 16_000
 FRAME_SAMPLES = 320
 FRAME_BYTES = FRAME_SAMPLES * 2
-TRAILING_SILENCE_SECONDS = 2
 DEFAULT_CORPUS = Path("evaluation/corpus")
 DEFAULT_RESULTS = Path("evaluation/results")
+CAPTURE_FINALIZATION_TIMEOUT_SECONDS = 120
+TRAILING_SILENCE_RMS_THRESHOLD = 0.01
 
 
 @dataclass
 class StreamState:
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     stats_received: asyncio.Event = field(default_factory=asyncio.Event)
+    capture_finalized: asyncio.Event = field(default_factory=asyncio.Event)
     sent_samples: int = 0
+    capture_ended_at: float | None = None
+    capture_finalized_at: float | None = None
     startup_error: str | None = None
     committed: list[tuple[float, dict[str, Any]]] = field(default_factory=list)
     recognition_lags: list[int] = field(default_factory=list)
@@ -50,6 +56,44 @@ def load_pcm16_mono(path: Path) -> bytes:
             raise ValueError(f"{path}: expected {SAMPLE_RATE} Hz")
 
         return audio.readframes(audio.getnframes())
+
+
+def trim_trailing_silence(
+    pcm: bytes,
+    threshold: float = TRAILING_SILENCE_RMS_THRESHOLD,
+    frame_samples: int = FRAME_SAMPLES,
+) -> tuple[bytes, int]:
+    if threshold < 0:
+        raise ValueError("Silence threshold cannot be negative")
+
+    if frame_samples <= 0:
+        raise ValueError("Frame size must be positive")
+
+    if len(pcm) % 2 != 0:
+        raise ValueError("PCM data must contain complete 16-bit samples")
+
+    sample_count = len(pcm) // 2
+
+    if sample_count == 0:
+        return pcm, 0
+
+    samples = struct.unpack(f"<{sample_count}h", pcm)
+    last_active_end = 0
+
+    for offset in range(0, sample_count, frame_samples):
+        frame = samples[offset : offset + frame_samples]
+        mean_square = math.fsum(sample * sample for sample in frame) / len(frame)
+        rms = math.sqrt(mean_square) / 32768
+
+        if rms >= threshold:
+            last_active_end = offset + len(frame)
+
+    if last_active_end == 0 or last_active_end == sample_count:
+        return pcm, 0
+
+    trimmed_samples = sample_count - last_active_end
+
+    return pcm[: last_active_end * 2], trimmed_samples
 
 
 async def receive_messages(websocket: Any, state: StreamState) -> None:
@@ -88,8 +132,28 @@ async def receive_messages(websocket: Any, state: StreamState) -> None:
             state.stats_received.set()
             continue
 
+        if message_type == "capture" and message.get("status") == "finalized":
+            state.capture_finalized_at = time.monotonic()
+            state.capture_finalized.set()
+            continue
+
         if message_type == "error":
             state.errors.append(message)
+
+
+async def request_capture_finalization(
+    websocket: Any,
+    state: StreamState,
+    timeout: float = CAPTURE_FINALIZATION_TIMEOUT_SECONDS,
+) -> float:
+    state.capture_ended_at = time.monotonic()
+    await websocket.send(json.dumps({"type": "capture_end"}))
+    await asyncio.wait_for(state.capture_finalized.wait(), timeout=timeout)
+
+    if state.capture_finalized_at is None:
+        raise RuntimeError("capture finalized without a completion timestamp")
+
+    return (state.capture_finalized_at - state.capture_ended_at) * 1000
 
 
 async def send_pcm(websocket: Any, pcm: bytes, state: StreamState, started_at: float, realtime: bool) -> None:
@@ -138,7 +202,12 @@ def count_duplicate_boundaries(committed_messages: list[dict[str, Any]]) -> int:
     return duplicates
 
 
-async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) -> dict[str, Any]:
+async def evaluate_clip(
+    audio_path: Path,
+    websocket_url: str,
+    realtime: bool,
+    trim_silence: bool = True,
+) -> dict[str, Any]:
     reference_path = audio_path.with_suffix(".txt")
 
     if not reference_path.is_file():
@@ -147,7 +216,12 @@ async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) ->
             f"{reference_path}"
         )
 
-    pcm = load_pcm16_mono(audio_path)
+    source_pcm = load_pcm16_mono(audio_path)
+    pcm, trimmed_samples = (
+        trim_trailing_silence(source_pcm)
+        if trim_silence
+        else (source_pcm, 0)
+    )
     reference = reference_path.read_text(encoding="utf-8").strip()
     state = StreamState()
 
@@ -173,20 +247,10 @@ async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) ->
                 realtime,
             )
 
-            silence = (
-                b"\x00\x00"
-                * SAMPLE_RATE
-                * TRAILING_SILENCE_SECONDS
-            )
-            await send_pcm(
+            capture_finalize_latency_ms = await request_capture_finalization(
                 websocket,
-                silence,
                 state,
-                started_at,
-                realtime,
             )
-
-            await asyncio.sleep(6)
 
             await websocket.send(json.dumps({"type": "stats"}))
             await asyncio.wait_for(
@@ -226,6 +290,14 @@ async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) ->
             audio_seconds,
             3,
         ),
+        "source_audio_seconds": round(
+            len(source_pcm) / 2 / SAMPLE_RATE,
+            3,
+        ),
+        "trimmed_trailing_silence_ms": round(
+            trimmed_samples / SAMPLE_RATE * 1000,
+            2,
+        ),
         "reference": reference,
         "transcript": transcript,
         "word_errors": {
@@ -247,6 +319,10 @@ async def evaluate_clip(audio_path: Path, websocket_url: str, realtime: bool) ->
         "recognition_lags_samples": (
             state.recognition_lags
         ),
+        "capture_finalize_latency_ms": round(
+            capture_finalize_latency_ms,
+            2,
+        ),
         "duplicate_boundaries": (
             count_duplicate_boundaries(
                 committed_messages
@@ -264,6 +340,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     total_reference_words = 0
     commit_latencies = []
     recognition_lags = []
+    capture_finalize_latencies = []
 
     for result in results:
         counts = result["word_errors"]
@@ -276,6 +353,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         total_reference_words += counts["reference_words"]
         commit_latencies.extend(result["commit_latencies_ms"])
         recognition_lags.extend(result["recognition_lags_samples"])
+        capture_finalize_latencies.append(result["capture_finalize_latency_ms"])
 
     summary: dict[str, Any] = {
         "clip_count": len(results),
@@ -326,6 +404,16 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
             2,
         )
 
+    if capture_finalize_latencies:
+        summary["capture_finalize_latency_p50_ms"] = round(
+            percentile(capture_finalize_latencies, 50),
+            2,
+        )
+        summary["capture_finalize_latency_p90_ms"] = round(
+            percentile(capture_finalize_latencies, 90),
+            2,
+        )
+
     return summary
 
 
@@ -345,6 +433,7 @@ async def run(args: argparse.Namespace) -> None:
             path,
             args.url,
             not args.no_realtime,
+            not args.keep_trailing_silence,
         )
         results.append(result)
 
@@ -357,6 +446,16 @@ async def run(args: argparse.Namespace) -> None:
         "created_at": datetime.now(UTC).isoformat(),
         "websocket_url": args.url,
         "realtime": not args.no_realtime,
+        "completion": {
+            "signal": "capture_end",
+            "synthetic_trailing_silence": False,
+            "trailing_silence_trimmed": not args.keep_trailing_silence,
+            "trailing_silence_rms_threshold": (
+                TRAILING_SILENCE_RMS_THRESHOLD
+                if not args.keep_trailing_silence
+                else None
+            ),
+        },
         "summary": summarize(results),
         "clips": results,
         "recognizer": results[0]["recognizer"],
@@ -368,7 +467,7 @@ async def run(args: argparse.Namespace) -> None:
     )
     output_path = (
         args.results
-        / "streaming-baseline.json"
+        / "streaming-capture-end.json"
     )
     output_path.write_text(
         json.dumps(payload, indent=2),
@@ -412,6 +511,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Send audio without pacing. "
             "Latency results will be invalid."
+        ),
+    )
+    parser.add_argument(
+        "--keep-trailing-silence",
+        action="store_true",
+        help=(
+            "Preserve trailing silence in source clips. "
+            "By default it is trimmed to exercise abrupt capture finalization."
         ),
     )
 
