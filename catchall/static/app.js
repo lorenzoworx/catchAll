@@ -147,6 +147,11 @@ function connect() {
             }
         }
 
+        if (message.type === "capture" && message.status === "finalized") {
+            recordingStatus.textContent = "Microphone stopped";
+            microphoneButton.disabled = false;
+        }
+
     });
 
     socket.addEventListener("error", () => {
@@ -289,6 +294,7 @@ async function startCapture() {
 }
 
 async function stopCapture() {
+    microphoneButton.disabled = true;
     captureNode?.disconnect();
     mediaSource?.disconnect();
 
@@ -307,7 +313,14 @@ async function stopCapture() {
 
     microphoneButton.textContent = "Start microphone";
     captureDetails.textContent = "";
-    recordingStatus.textContent = "Microphone stopped" ;
+
+    if (socket?.readyState === WebSocket.OPEN) {
+        recordingStatus.textContent = "Finalizing last phrase...";
+        socket.send(JSON.stringify({ type: "capture_end" }));
+    } else {
+        recordingStatus.textContent = "Microphone stopped";
+        microphoneButton.disabled = false;
+    }
 }
 
 async function toggleCapture() {

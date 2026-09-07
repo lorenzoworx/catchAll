@@ -54,6 +54,21 @@ def test_first_hypothesis_remains_provisional() -> None:
     assert result.committed == ()
     assert result.provisional == hypothesis
 
+def test_finalizes_the_last_provisional_hypothesis_at_a_boundary() -> None:
+    agreement = LocalAgreement()
+    hypothesis = (
+        word("short", 0, 100),
+        word("phrase", 100, 200),
+    )
+
+    agreement.update(hypothesis)
+    result = agreement.finalize()
+
+    assert result.committed == hypothesis
+    assert result.provisional == ()
+    assert agreement.committed_word_count == 2
+    assert agreement.finalize().committed == ()
+
 def test_two_hypotheses_commit_shared_prefix() -> None:
     agreement = LocalAgreement()
 

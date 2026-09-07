@@ -75,6 +75,16 @@ class LocalAgreement:
 
         return AgreementResult(committed=committed, provisional=provisional)
 
+    def finalize(self) -> AgreementResult:
+        committed = self._previous
+        self._previous = ()
+        self._record_committed(committed)
+
+        return AgreementResult(
+            committed=committed,
+            provisional=(),
+        )
+
     def _record_committed(self, words: Sequence[TimedWord]) -> None:
         if not words:
             return

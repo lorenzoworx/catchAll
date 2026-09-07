@@ -40,6 +40,22 @@ class AudioConsumer:
 
         return drained_samples
 
+    def drain_all(self) -> int:
+        drained_samples = self.drain_available()
+        remaining_samples = self._ring.size
+
+        if remaining_samples == 0:
+            return drained_samples
+
+        samples = self._ring.read(remaining_samples)
+        drained_samples += len(samples)
+        self.consumed_samples += len(samples)
+
+        if self._on_chunk is not None and samples:
+            self._on_chunk(samples)
+
+        return drained_samples
+
     async def run(self) -> None:
         while True:
             await self._audio_available.wait()

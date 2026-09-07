@@ -182,3 +182,90 @@ def test_continuing_silence_does_not_repeat_boundary() -> None:
     assert pipeline.silence_boundaries == 1
     assert pipeline.final_silence_windows == 1
     assert pipeline.skipped_silence_windows == 2
+
+def test_capture_end_runs_a_final_pass_for_a_short_utterance() -> None:
+    async def scenario() -> None:
+        candidates = []
+        boundaries = []
+        recognizer = FakeRecognizer()
+        pipeline = RecognitionPipeline(
+            recognizer=recognizer,
+            on_candidate=candidates.append,
+            on_silence=boundaries.append,
+            window_buffer=RecognitionWindowBuffer(
+                min_samples=4,
+                max_samples=8,
+                hop_samples=2,
+            ),
+            speech_gate=EnergySpeechGate(
+                threshold=0.05,
+                frame_samples=2,
+                lookback_samples=4,
+                min_active_frames=1,
+            ),
+        )
+        task = asyncio.create_task(pipeline.run())
+
+        try:
+            assert pipeline.accept_audio([0.1, 0.1]) == 0
+            assert pipeline.finish_utterance() is True
+            assert pipeline.finish_utterance() is False
+
+            await pipeline.wait_until_idle()
+
+            assert recognizer.calls == [(0.1, 0.1)]
+            assert len(candidates) == 1
+            assert boundaries == [2]
+            assert pipeline.capture_boundaries == 1
+        finally:
+            task.cancel()
+
+            with suppress(asyncio.CancelledError):
+                await task
+
+    asyncio.run(scenario())
+
+def test_empty_final_pass_is_emitted_to_clear_a_stale_hypothesis() -> None:
+    class EmptyFinalRecognizer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
+            self.calls += 1
+
+            if self.calls == 1:
+                return RecognitionHypothesis(words=(
+                    TimedWord("maybe", 0, len(samples)),
+                ))
+
+            return RecognitionHypothesis(words=())
+
+    async def scenario() -> None:
+        candidates = []
+        recognizer = EmptyFinalRecognizer()
+        pipeline = RecognitionPipeline(
+            recognizer=recognizer,
+            on_candidate=candidates.append,
+            window_buffer=RecognitionWindowBuffer(
+                min_samples=4,
+                max_samples=8,
+                hop_samples=2,
+            ),
+        )
+        task = asyncio.create_task(pipeline.run())
+
+        try:
+            pipeline.accept_audio([0.1] * 4)
+            assert pipeline.finish_utterance() is True
+            await pipeline.wait_until_idle()
+
+            assert len(candidates) == 2
+            assert candidates[0].text == "maybe"
+            assert candidates[1].words == ()
+        finally:
+            task.cancel()
+
+            with suppress(asyncio.CancelledError):
+                await task
+
+    asyncio.run(scenario())

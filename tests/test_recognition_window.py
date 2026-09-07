@@ -19,6 +19,20 @@ def test_waits_for_minimum_audio() -> None:
     assert windows[0].end_sample == 4
     assert windows[0].samples == (0.0, 1.0, 2.0, 3.0)
 
+def test_snapshots_partial_audio_for_a_final_pass() -> None:
+    buffer = RecognitionWindowBuffer(
+        min_samples=4,
+        max_samples=8,
+        hop_samples=2,
+    )
+
+    buffer.add([0.0, 1.0, 2.0])
+
+    assert buffer.snapshot() is not None
+    assert buffer.snapshot().start_sample == 0
+    assert buffer.snapshot().end_sample == 3
+    assert buffer.snapshot().samples == (0.0, 1.0, 2.0)
+
 def test_emits_overlapping_growing_windows() -> None:
     buffer = RecognitionWindowBuffer(
         min_samples=4,

@@ -12,6 +12,7 @@ class AudioWindow:
     start_sample: int
     end_sample: int
     samples: tuple[float, ...]
+    is_final: bool = False
 
 class RecognitionWindowBuffer:
     def __init__(
@@ -33,6 +34,18 @@ class RecognitionWindowBuffer:
         self._total_samples = 0
         self._next_emission = min_samples
         self._hop_samples = hop_samples
+
+    def snapshot(self) -> AudioWindow | None:
+        if not self._samples:
+            return None
+
+        samples = tuple(self._samples)
+
+        return AudioWindow(
+            start_sample=self._total_samples - len(samples),
+            end_sample=self._total_samples,
+            samples=samples,
+        )
 
     def add(self, samples: Iterable[float]) -> list[AudioWindow]:
         windows: list[AudioWindow] = []

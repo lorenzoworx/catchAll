@@ -133,6 +133,7 @@ def test_websocket_consumes_binary_audio() -> None:
             "committed_words": 0,
             "final_silence_windows": 0,
             "silence_boundaries": 0,
+            "capture_boundaries": 0,
             "plain_language_enabled": False,
             "processed_plain_sentences": 0,
             "fallback_plain_sentences": 0,
@@ -297,6 +298,94 @@ def test_silence_runs_final_recognition_pass() -> None:
             "text": "",
             "window_start_sample": 0,
             "window_end_sample": 24_000
+        }
+
+def test_capture_end_commits_a_short_final_phrase() -> None:
+    samples = [12_000] * 320
+
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        for frame_number in range(25):
+            header = AUDIO_HEADER.pack(
+                AUDIO_FRAME_TYPE,
+                0,
+                len(samples),
+                frame_number * len(samples),
+            )
+            payload = header + struct.pack(
+                f"<{len(samples)}h",
+                *samples,
+            )
+            websocket.send_bytes(payload)
+
+        websocket.send_json({"type": "capture_end"})
+
+        assert websocket.receive_json() == {
+            "type": "caption",
+            "state": "provisional",
+            "text": "test caption",
+            "window_start_sample": 0,
+            "window_end_sample": 8_000,
+        }
+        assert websocket.receive_json() == {
+            "type": "caption",
+            "state": "committed",
+            "text": "test caption",
+            "start_sample": 0,
+            "end_sample": 8_000,
+        }
+        assert websocket.receive_json() == {
+            "type": "caption",
+            "state": "provisional",
+            "text": "",
+            "window_start_sample": 8_000,
+            "window_end_sample": 8_000,
+        }
+        assert websocket.receive_json() == {
+            "type": "capture",
+            "status": "finalized",
+        }
+
+def test_capture_end_flushes_an_unpunctuated_plain_language_sentence() -> None:
+    samples = [12_000] * 320
+
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+        websocket.send_json({
+            "type": "plain_language",
+            "enabled": True,
+        })
+        assert websocket.receive_json()["type"] == "plain_language"
+
+        for frame_number in range(25):
+            header = AUDIO_HEADER.pack(
+                AUDIO_FRAME_TYPE,
+                0,
+                len(samples),
+                frame_number * len(samples),
+            )
+            payload = header + struct.pack(
+                f"<{len(samples)}h",
+                *samples,
+            )
+            websocket.send_bytes(payload)
+
+        websocket.send_json({"type": "capture_end"})
+
+        assert websocket.receive_json()["state"] == "provisional"
+        assert websocket.receive_json()["state"] == "committed"
+        assert websocket.receive_json()["state"] == "provisional"
+
+        plain_caption = websocket.receive_json()
+        assert plain_caption["type"] == "plain_caption"
+        assert plain_caption["original"] == "test caption"
+        assert plain_caption["text"] == "test caption"
+        assert plain_caption["status"] == "unchanged"
+
+        assert websocket.receive_json() == {
+            "type": "capture",
+            "status": "finalized",
         }
 
 def test_plain_language_is_optional() -> None:

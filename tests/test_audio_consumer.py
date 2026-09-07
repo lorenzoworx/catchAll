@@ -25,6 +25,22 @@ def test_leaves_incomplete_chunk_buffered() -> None:
     assert ring.size == 80
     assert consumer.consumed_samples == 320
 
+def test_drain_all_delivers_the_final_partial_chunk() -> None:
+    ring = _core.AudioRing(1_000)
+    delivered: list[list[float]] = []
+    consumer = AudioConsumer(
+        ring,
+        chunk_samples=320,
+        on_chunk=delivered.append,
+    )
+
+    assert ring.write([0.25] * 400) == 400
+    assert consumer.drain_all() == 400
+
+    assert ring.size == 0
+    assert consumer.consumed_samples == 400
+    assert [len(chunk) for chunk in delivered] == [320, 80]
+
 def test_background_consumer_drains_after_notification() -> None:
     async def scenario() -> None:
         ring = _core.AudioRing(1_000)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from catchall.recognition_window import AudioWindow, RecognitionWindowBuffer
@@ -64,11 +64,13 @@ class RecognitionPipeline:
         self._pending: asyncio.Queue[AudioWindow | SilenceBoundary] = asyncio.Queue()
         self._pending_window_count = 0
         self._speech_active = False        
+        self._boundary_through_sample = 0
         self.rejected_windows = 0
         self.failed_windows = 0
         self.skipped_silence_windows = 0
         self.final_silence_windows = 0
         self.silence_boundaries = 0
+        self.capture_boundaries = 0
 
     @property
     def pending_windows(self) -> int:
@@ -101,17 +103,47 @@ class RecognitionPipeline:
             if self._speech_active:
                 self._speech_active = False
 
-                self._queue_window(window, force=True)
+                self._queue_window(
+                    replace(window, is_final=True),
+                    force=True,
+                )
                 queued_windows += 1
                 self.final_silence_windows += 1
 
                 self._pending.put_nowait(SilenceBoundary(at_sample=window.end_sample))
+                self._boundary_through_sample = window.end_sample
                 self.silence_boundaries += 1
 
             else:
                 self.skipped_silence_windows += 1
 
         return queued_windows
+
+    def finish_utterance(self) -> bool:
+        window = self._window_buffer.snapshot()
+
+        if window is None or window.end_sample <= self._boundary_through_sample:
+            return False
+
+        has_speech = (
+            self._speech_active
+            or self._speech_gate is None
+            or self._speech_gate.has_speech(window.samples)
+        )
+
+        if not has_speech:
+            return False
+
+        self._speech_active = False
+        self._queue_window(
+            replace(window, is_final=True),
+            force=True,
+        )
+        self._pending.put_nowait(SilenceBoundary(at_sample=window.end_sample))
+        self._boundary_through_sample = window.end_sample
+        self.capture_boundaries += 1
+
+        return True
 
     async def wait_until_idle(self) -> None:
         await self._pending.join()
@@ -142,7 +174,7 @@ class RecognitionPipeline:
                         )
                         for word in hypothesis.words
                     )
-                    if absolute_words:
+                    if absolute_words or window.is_final:
                         self._on_candidate(
                             TranscriptCandidate(
                                 words=absolute_words,
@@ -156,6 +188,15 @@ class RecognitionPipeline:
 
                     if self._on_error is not None:
                         self._on_error(f"{type(error).__name__}: {error}")
+
+                    if window.is_final:
+                        self._on_candidate(
+                            TranscriptCandidate(
+                                words=(),
+                                window_start_sample=window.start_sample,
+                                window_end_sample=window.end_sample,
+                            )
+                        )
 
             finally:
                 if isinstance(item, AudioWindow):
