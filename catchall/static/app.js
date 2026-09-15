@@ -1,5 +1,6 @@
 import { buildAudioFrame } from "./audio-protocol.js";
 import {
+    AudioCaptureSession,
     describeMicrophoneError,
     detectAudioCaptureSupport,
 } from "./audio-capture.js";
@@ -18,6 +19,7 @@ const connectionStatus = document.querySelector("#connection-status");
 const microphoneButton = document.querySelector("#microphone-button");
 const recordingStatus = document.querySelector("#recording-status");
 const captureDetails = document.querySelector("#capture-details");
+const captionAlert = document.querySelector("#caption-alert");
 const provisionalCaption = document.querySelector("#provisional-caption");
 const finalizedCaptions = document.querySelector("#finalized-captions");
 const plainLanguageToggle = document.querySelector("#plain-language-toggle");
@@ -31,14 +33,16 @@ const plainTranscriptCaptions = new Map();
 const sessionState = new CaptionSessionState();
 const audioSupport = detectAudioCaptureSupport(window);
 
-let audioContext = null;
-let mediaStream = null;
-let mediaSource = null;
-let captureNode = null;
 let connection = null;
 let serverReady = false;
 let hasCommittedCaptions = false;
 let hasPlainLanguageCaptions = false;
+
+const captureSession = new AudioCaptureSession({
+    environment: window,
+    support: audioSupport,
+    onMessage: handleAudioCaptureMessage,
+});
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
@@ -64,6 +68,33 @@ function setReadyMicrophoneState(status = "Microphone ready") {
     microphoneButton.disabled = false;
 }
 
+function handleAudioCaptureMessage(event) {
+    if (event.data.type === "audio-frame") {
+        const samples = new Int16Array(event.data.samples);
+        const frame = buildAudioFrame(
+            samples,
+            event.data.firstSampleIndex,
+        );
+
+        connection.send(frame);
+        return;
+    }
+
+    if (event.data.type === "ready") {
+        captureDetails.textContent =
+            `Input: ${event.data.inputSampleRate} Hz; `
+            + `prepared output: ${event.data.outputSampleRate} Hz`;
+    }
+
+    if (event.data.type === "progress") {
+        const seconds = event.data.framedSamples / event.data.outputSampleRate;
+
+        captureDetails.textContent =
+            `Prepared ${seconds.toFixed(1)} seconds `
+            + "of 16 kHz audio";
+    }
+}
+
 function makeWebSocketUrl() {
     const url = new URL("/ws", window.location.origin);
     url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -85,6 +116,7 @@ function handleSocketMessage(event) {
 
     if (message.type === "recognizer" && message.status === "ready") {
         serverReady = true;
+        captionAlert.textContent = "";
         connection.markStable();
         setConnectionStatus("Connected");
         setReadyMicrophoneState();
@@ -105,8 +137,19 @@ function handleSocketMessage(event) {
     if (message.type === "error" && message.code === "recognizer_unavailable") {
         serverReady = false;
         recordingStatus.textContent = "Speech recognition unavailable";
+        captionAlert.textContent = "Speech recognition could not be started.";
         microphoneButton.disabled = true;
         plainLanguageToggle.disabled = true;
+    }
+
+    if (message.type === "error" && message.code === "recognition_failed") {
+        captionAlert.textContent =
+            "Some speech could not be captioned. Listening continues.";
+    }
+
+    if (message.type === "error" && message.code === "audio_buffer_full") {
+        captionAlert.textContent =
+            "Audio processing fell behind, so some audio was skipped.";
     }
 
     if (message.type === "caption" && message.state === "committed") {
@@ -220,7 +263,7 @@ function handleConnectionState({ state, delay = 0 }) {
         plainLanguageStatus.textContent = "Unavailable while reconnecting.";
         provisionalCaption.textContent = "Connection lost; provisional caption discarded.";
 
-        if (mediaStream !== null || audioContext !== null) {
+        if (captureSession.busy) {
             void stopCapture({
                 finalize: false,
                 stoppedStatus: "Microphone stopped after connection loss.",
@@ -258,71 +301,18 @@ async function startCapture() {
         return;
     }
 
-    provisionalCaption.textContent = "Listening for speech";
     microphoneButton.disabled = true;
+    captionAlert.textContent = "";
     recordingStatus.textContent = "Requesting microphone permission...";
 
     try {
-        mediaStream = await window.navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-            },
-            video: false,
-        });
+        const started = await captureSession.start();
 
-        audioContext = new audioSupport.AudioContextClass({
-            latencyHint: "interactive",
-        });
+        if (!started) {
+            return;
+        }
 
-        await audioContext.audioWorklet.addModule(
-            "/static/capture-worklet.js"
-        );
-
-        mediaSource = audioContext.createMediaStreamSource(mediaStream);
-
-        captureNode = new audioSupport.AudioWorkletNodeClass(
-            audioContext,
-            "capture",
-            {
-                numberOfInputs: 1,
-                numberOfOutputs: 0,
-                channelCount: 1,
-            }
-        );
-
-        captureNode.port.addEventListener("message", (event) => {
-            if (event.data.type === "audio-frame") {
-                const samples = new Int16Array(event.data.samples);
-                const frame = buildAudioFrame(
-                    samples,
-                    event.data.firstSampleIndex
-                );
-
-                connection.send(frame);
-                return;
-            }
-
-            if (event.data.type === "ready") {
-                captureDetails.textContent = 
-                    `Input: ${event.data.inputSampleRate} Hz; ` +
-                    `prepared output: ${event.data.outputSampleRate} Hz`;
-            }
-
-            if (event.data.type === "progress") {
-                const seconds = event.data.framedSamples / event.data.outputSampleRate;
-
-                captureDetails.textContent = 
-                    `Prepared ${seconds.toFixed(1)} seconds ` +
-                    `of 16 kHz audio`;
-            }
-        });
-
-        captureNode.port.start();
-        mediaSource.connect(captureNode);
-        await audioContext.resume();
-
+        provisionalCaption.textContent = "Listening for speech";
         recordingStatus.textContent = "Microphone recording";
         microphoneButton.textContent = "Stop microphone";
     } catch (error) {
@@ -339,21 +329,7 @@ async function stopCapture({
     stoppedStatus = "Microphone stopped",
 } = {}) {
     microphoneButton.disabled = true;
-    captureNode?.disconnect();
-    mediaSource?.disconnect();
-
-    for (const track of mediaStream?.getTracks() ?? []) {
-        track.stop();
-    }
-
-    if (audioContext && audioContext.state !== "closed") {
-        await audioContext.close();
-    }
-
-    captureNode = null;
-    mediaSource = null;
-    mediaStream = null;
-    audioContext = null;
+    await captureSession.stop();
 
     microphoneButton.textContent = "Start microphone";
     captureDetails.textContent = "";
@@ -372,7 +348,7 @@ async function stopCapture({
 }
 
 async function toggleCapture() {
-    if (mediaStream) {
+    if (captureSession.active) {
         await stopCapture();
     } else {
         await startCapture();

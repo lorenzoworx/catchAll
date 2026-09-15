@@ -69,6 +69,8 @@ def test_homepage() -> None:
     assert 'id="microphone-button"' in response.text
     assert "disabled" in response.text
     assert 'id="recording-status"' in response.text
+    assert 'id="caption-alert"' in response.text
+    assert 'role="alert"' in response.text
     assert 'id="finalized-captions"' in response.text
     assert 'id="provisional-caption"' in response.text
     assert 'id="plain-language-toggle"' in response.text
