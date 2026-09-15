@@ -13,9 +13,11 @@ class FakeWord:
     start: float
     end: float
 
+
 @dataclass
 class FakeSegment:
     words: list[FakeWord] | None
+
 
 class FakeModel:
     def __init__(self, segments: list[FakeSegment]) -> None:
@@ -29,13 +31,18 @@ class FakeModel:
 
         return iter(self._segments), object()
 
+
 def test_converts_audio_to_float32_and_joins_segments() -> None:
-    model = FakeModel([
-        FakeSegment(words=[
-            FakeWord(" Hello", 0.1, 0.4),
-            FakeWord(" world.", 0.4, 0.9),
-        ])
-    ])
+    model = FakeModel(
+        [
+            FakeSegment(
+                words=[
+                    FakeWord(" Hello", 0.1, 0.4),
+                    FakeWord(" world.", 0.4, 0.9),
+                ]
+            )
+        ]
+    )
     recognizer = WhisperRecognizer(model=model)
 
     samples = [0.0] * 16_000
@@ -50,20 +57,15 @@ def test_converts_audio_to_float32_and_joins_segments() -> None:
             start_sample=1_600,
             end_sample=6_400,
         ),
-        TimedWord(
-            text="world.",
-            start_sample=6_400,
-            end_sample=14_400
-        )
+        TimedWord(text="world.", start_sample=6_400, end_sample=14_400),
     )
     assert model.audio is not None
     assert model.audio.dtype == np.float32
     assert model.audio[:3].tolist() == [0.0, 0.25, -0.25]
 
+
 def test_uses_low_latency_english_options() -> None:
-    model = FakeModel([FakeSegment(
-        words=[FakeWord(" test", 0.0, 0.1)]
-    )])
+    model = FakeModel([FakeSegment(words=[FakeWord(" test", 0.0, 0.1)])])
     recognizer = WhisperRecognizer(model=model)
 
     recognizer.transcribe([0.0])
@@ -77,19 +79,21 @@ def test_uses_low_latency_english_options() -> None:
         "word_timestamps": True,
     }
 
+
 def test_ignores_empty_segments() -> None:
-    model = FakeModel([
-        FakeSegment(
-            words=[FakeWord("   ", 0.0, 0.1)]
-        ),
-        FakeSegment(words=None),
-        FakeSegment(words=[])
-    ])
+    model = FakeModel(
+        [
+            FakeSegment(words=[FakeWord("   ", 0.0, 0.1)]),
+            FakeSegment(words=None),
+            FakeSegment(words=[]),
+        ]
+    )
     recognizer = WhisperRecognizer(model=model)
 
     result = recognizer.transcribe([0.0])
 
     assert result.words == ()
+
 
 def test_reports_recognizer_configuration() -> None:
     model = FakeModel([])

@@ -7,6 +7,7 @@ MIN_WINDOW_SAMPLES = SAMPLE_RATE
 MAX_WINDOW_SAMPLES = SAMPLE_RATE * 5
 HOP_SAMPLES = SAMPLE_RATE // 2
 
+
 @dataclass(frozen=True)
 class AudioWindow:
     start_sample: int
@@ -14,12 +15,13 @@ class AudioWindow:
     samples: tuple[float, ...]
     is_final: bool = False
 
+
 class RecognitionWindowBuffer:
     def __init__(
-            self,
-            min_samples: int = MIN_WINDOW_SAMPLES,
-            max_samples: int = MAX_WINDOW_SAMPLES,
-            hop_samples: int = HOP_SAMPLES,
+        self,
+        min_samples: int = MIN_WINDOW_SAMPLES,
+        max_samples: int = MAX_WINDOW_SAMPLES,
+        hop_samples: int = HOP_SAMPLES,
     ) -> None:
         if min_samples <= 0:
             raise ValueError("Minimum window must be positive")
@@ -61,9 +63,7 @@ class RecognitionWindowBuffer:
 
             windows.append(
                 AudioWindow(
-                    start_sample=(
-                        self._total_samples - len(snapshot)
-                    ),
+                    start_sample=(self._total_samples - len(snapshot)),
                     end_sample=self._total_samples,
                     samples=snapshot,
                 )

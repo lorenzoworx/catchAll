@@ -9,6 +9,7 @@ MAX_SAMPLES_PER_FRAME = 4096
 class AudioFrameError(ValueError):
     """Raided when a binary audio frame violates the wire protocol."""
 
+
 @dataclass(frozen=True)
 class AudioFrame:
     first_sample_index: int
@@ -19,9 +20,7 @@ def decode_audio_frame(payload: bytes) -> AudioFrame:
     if len(payload) < AUDIO_HEADER.size:
         raise AudioFrameError("audio frame is shorter than its header")
 
-    frame_type, flags, sample_count, first_sample_index =  AUDIO_HEADER.unpack_from(
-        payload
-    )
+    frame_type, flags, sample_count, first_sample_index = AUDIO_HEADER.unpack_from(payload)
 
     if frame_type != AUDIO_FRAME_TYPE:
         raise AudioFrameError("unsupported binary frame type")

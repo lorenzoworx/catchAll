@@ -19,6 +19,7 @@ def test_waits_for_minimum_audio() -> None:
     assert windows[0].end_sample == 4
     assert windows[0].samples == (0.0, 1.0, 2.0, 3.0)
 
+
 def test_snapshots_partial_audio_for_a_final_pass() -> None:
     buffer = RecognitionWindowBuffer(
         min_samples=4,
@@ -32,6 +33,7 @@ def test_snapshots_partial_audio_for_a_final_pass() -> None:
     assert buffer.snapshot().start_sample == 0
     assert buffer.snapshot().end_sample == 3
     assert buffer.snapshot().samples == (0.0, 1.0, 2.0)
+
 
 def test_emits_overlapping_growing_windows() -> None:
     buffer = RecognitionWindowBuffer(
@@ -52,6 +54,7 @@ def test_emits_overlapping_growing_windows() -> None:
     assert windows[1].end_sample == 6
     assert windows[1].samples == (0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
 
+
 def test_limits_history_and_tracks_absolute_position() -> None:
     buffer = RecognitionWindowBuffer(
         min_samples=4,
@@ -64,7 +67,17 @@ def test_limits_history_and_tracks_absolute_position() -> None:
 
     assert latest.start_sample == 2
     assert latest.end_sample == 10
-    assert latest.samples == (2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,)
+    assert latest.samples == (
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+        9.0,
+    )
+
 
 def test_results_do_not_depend_on_input_chunk_boundaries() -> None:
     one_shot = RecognitionWindowBuffer(
@@ -86,6 +99,7 @@ def test_results_do_not_depend_on_input_chunk_boundaries() -> None:
 
     assert chunked == one_shot
 
+
 @pytest.mark.parametrize(
     ("min_samples", "max_samples", "hop_samples"),
     [
@@ -94,7 +108,9 @@ def test_results_do_not_depend_on_input_chunk_boundaries() -> None:
         (4, 8, 0),
     ],
 )
-def test_rejects_invalid_configuration(min_samples:int, max_samples: int, hop_samples:int) -> None:
+def test_rejects_invalid_configuration(
+    min_samples: int, max_samples: int, hop_samples: int
+) -> None:
     with pytest.raises(ValueError):
         RecognitionWindowBuffer(
             min_samples=min_samples,

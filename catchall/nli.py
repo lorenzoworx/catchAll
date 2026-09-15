@@ -55,7 +55,9 @@ class BidirectionalNliScorer:
     def score(self, original: str, candidate: str) -> BidirectionalNliResult:
         model = self._get_model()
         with self._prediction_lock:
-            raw_logits = model.predict([(original, candidate), (candidate, original)], show_progress_bar=False)
+            raw_logits = model.predict(
+                [(original, candidate), (candidate, original)], show_progress_bar=False
+            )
 
             logits = np.asarray(raw_logits, dtype=float)
 

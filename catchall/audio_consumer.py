@@ -9,7 +9,12 @@ AudioChunkHandler = Callable[[list[float]], None]
 
 
 class AudioConsumer:
-    def __init__(self, ring: _core.AudioRing, chunk_samples: int = 320, on_chunk:AudioChunkHandler | None = None,) -> None:
+    def __init__(
+        self,
+        ring: _core.AudioRing,
+        chunk_samples: int = 320,
+        on_chunk: AudioChunkHandler | None = None,
+    ) -> None:
         if chunk_samples <= 0:
             raise ValueError("Chunk size must be positive")
 

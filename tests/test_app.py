@@ -13,27 +13,19 @@ from catchall.recognizer_provider import RecognizerProvider
 class FakeRecognizer:
     def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
         midpoint = len(samples) // 2
-        
+
         return RecognitionHypothesis(
             words=(
-                TimedWord(
-                    text="test",
-                    start_sample=0,
-                    end_sample=midpoint
-                ),
-                TimedWord(
-                    text="caption",
-                    start_sample=midpoint,
-                    end_sample=len(samples)
-                ),
+                TimedWord(text="test", start_sample=0, end_sample=midpoint),
+                TimedWord(text="caption", start_sample=midpoint, end_sample=len(samples)),
             )
         )
 
-app.state.recognizer_provider = RecognizerProvider(
-    FakeRecognizer
-)
+
+app.state.recognizer_provider = RecognizerProvider(FakeRecognizer)
 
 client = TestClient(app)
+
 
 def receive_startup_messages(websocket: Any) -> None:
     assert websocket.receive_json() == {
@@ -49,11 +41,13 @@ def receive_startup_messages(websocket: Any) -> None:
         "status": "ready",
     }
 
+
 def test_health_endpoint() -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
 
 def test_homepage() -> None:
     response = client.get("/")
@@ -80,15 +74,18 @@ def test_homepage() -> None:
     assert 'id="export-button"' in response.text
     assert 'id="export-status"' in response.text
 
+
 def test_stylesheet() -> None:
     response = client.get("/static/styles.css")
 
     assert response.status_code == 200
     assert "text/css" in response.headers["content-type"]
 
+
 def test_websocket_connects() -> None:
     with client.websocket_connect("/ws") as websocket:
         receive_startup_messages(websocket)
+
 
 def test_websocket_ping_pong() -> None:
     with client.websocket_connect("/ws") as websocket:
@@ -96,6 +93,7 @@ def test_websocket_ping_pong() -> None:
         websocket.send_json({"type": "ping"})
 
         assert websocket.receive_json() == {"type": "pong"}
+
 
 def test_javascript_is_served() -> None:
     response = client.get("/static/app.js")
@@ -105,6 +103,7 @@ def test_javascript_is_served() -> None:
     assert '"plain_language"' in response.text
     assert '"plain_caption"' in response.text
 
+
 def test_connection_lifecycle_javascript_is_served() -> None:
     response = client.get("/static/connection-lifecycle.js")
 
@@ -113,6 +112,7 @@ def test_connection_lifecycle_javascript_is_served() -> None:
     assert "ReconnectingSocket" in response.text
     assert "CaptionSessionState" in response.text
 
+
 def test_audio_capture_javascript_is_served() -> None:
     response = client.get("/static/audio-capture.js")
 
@@ -120,6 +120,7 @@ def test_audio_capture_javascript_is_served() -> None:
     assert "javascript" in response.headers["content-type"]
     assert "detectAudioCaptureSupport" in response.text
     assert "describeMicrophoneError" in response.text
+
 
 def test_websocket_consumes_binary_audio() -> None:
     samples = [0] * 320
@@ -155,8 +156,9 @@ def test_websocket_consumes_binary_audio() -> None:
             "plain_language_enabled": False,
             "processed_plain_sentences": 0,
             "fallback_plain_sentences": 0,
-            "rejected_plain_sentences": 0
+            "rejected_plain_sentences": 0,
         }
+
 
 def test_websocket_rejects_invalid_audio_frame() -> None:
     with client.websocket_connect("/ws") as websocket:
@@ -168,17 +170,20 @@ def test_websocket_rejects_invalid_audio_frame() -> None:
         assert message["type"] == "error"
         assert message["code"] == "invalid_audio_frame"
 
+
 def test_audio_worklet_is_served() -> None:
     response = client.get("/static/capture-worklet.js")
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
 
+
 def test_browser_audio_protocol_module_is_served() -> None:
     response = client.get("/static/audio-protocol.js")
 
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
 
 def test_websocket_emits_provisional_caption() -> None:
     samples = [12_000] * 320
@@ -207,6 +212,7 @@ def test_websocket_emits_provisional_caption() -> None:
             "window_start_sample": 0,
             "window_end_sample": 16_000,
         }
+
 
 def test_websocket_commits_stable_caption_prefix() -> None:
     samples = [12_000] * 320
@@ -256,6 +262,7 @@ def test_websocket_commits_stable_caption_prefix() -> None:
             "window_end_sample": 24_000,
         }
 
+
 def test_silence_runs_final_recognition_pass() -> None:
     active_samples = [12_000] * 320
     silent_samples = [0] * 320
@@ -278,10 +285,7 @@ def test_silence_runs_final_recognition_pass() -> None:
 
         for frame_number in range(50, 75):
             header = AUDIO_HEADER.pack(
-                AUDIO_FRAME_TYPE,
-                0,
-                len(silent_samples),
-                frame_number * len(silent_samples)
+                AUDIO_FRAME_TYPE, 0, len(silent_samples), frame_number * len(silent_samples)
             )
 
             payload = header + struct.pack(
@@ -299,7 +303,7 @@ def test_silence_runs_final_recognition_pass() -> None:
             "state": "provisional",
             "text": "test caption",
             "window_start_sample": 0,
-            "window_end_sample": 16_000
+            "window_end_sample": 16_000,
         }
 
         assert committed == {
@@ -307,7 +311,7 @@ def test_silence_runs_final_recognition_pass() -> None:
             "state": "committed",
             "text": "test caption",
             "start_sample": 0,
-            "end_sample": 16_000
+            "end_sample": 16_000,
         }
 
         assert provisional == {
@@ -315,8 +319,9 @@ def test_silence_runs_final_recognition_pass() -> None:
             "state": "provisional",
             "text": "",
             "window_start_sample": 0,
-            "window_end_sample": 24_000
+            "window_end_sample": 24_000,
         }
+
 
 def test_capture_end_commits_a_short_final_phrase() -> None:
     samples = [12_000] * 320
@@ -365,15 +370,18 @@ def test_capture_end_commits_a_short_final_phrase() -> None:
             "status": "finalized",
         }
 
+
 def test_capture_end_flushes_an_unpunctuated_plain_language_sentence() -> None:
     samples = [12_000] * 320
 
     with client.websocket_connect("/ws") as websocket:
         receive_startup_messages(websocket)
-        websocket.send_json({
-            "type": "plain_language",
-            "enabled": True,
-        })
+        websocket.send_json(
+            {
+                "type": "plain_language",
+                "enabled": True,
+            }
+        )
         assert websocket.receive_json()["type"] == "plain_language"
 
         for frame_number in range(25):
@@ -406,46 +414,40 @@ def test_capture_end_flushes_an_unpunctuated_plain_language_sentence() -> None:
             "status": "finalized",
         }
 
+
 def test_plain_language_is_optional() -> None:
     with client.websocket_connect("/ws") as websocket:
         receive_startup_messages(websocket)
 
-        websocket.send_json({
-            "type": "plain_language",
-            "enabled": True
-        })
+        websocket.send_json({"type": "plain_language", "enabled": True})
 
         assert websocket.receive_json() == {
             "type": "plain_language",
             "enabled": True,
-            "processing": "local"
+            "processing": "local",
         }
 
-        websocket.send_json({
-            "type": "plain_language",
-            "enabled": False
-        })
+        websocket.send_json({"type": "plain_language", "enabled": False})
 
         assert websocket.receive_json() == {
             "type": "plain_language",
             "enabled": False,
-            "processing": "local"
+            "processing": "local",
         }
+
 
 def test_plain_language_setting_requires_boolean() -> None:
     with client.websocket_connect("/ws") as websocket:
         receive_startup_messages(websocket)
 
-        websocket.send_json({
-            "type": "plain_language",
-            "enabled": "yes"
-        })
+        websocket.send_json({"type": "plain_language", "enabled": "yes"})
 
         assert websocket.receive_json() == {
             "type": "error",
             "code": "invalid_plain_language_setting",
-            "message": "enabled must be a boolean."
+            "message": "enabled must be a boolean.",
         }
+
 
 def test_transcript_export_javascript_is_served() -> None:
     response = client.get("/static/transcript-export.js")

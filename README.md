@@ -72,6 +72,7 @@ Run the Python, browser-module, style, and native tests:
 ```bash
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
+.venv/bin/ruff format --check .
 npm run test:js
 npm run lint:js
 cmake -S . -B build

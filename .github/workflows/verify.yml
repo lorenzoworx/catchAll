@@ -43,6 +43,9 @@ jobs:
       - name: Lint Python
         run: python -m ruff check .
 
+      - name: Check Python formatting
+        run: python -m ruff format --check .
+
       - name: Run JavaScript tests
         run: npm run test:js
 

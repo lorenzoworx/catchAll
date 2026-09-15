@@ -9,10 +9,12 @@ from typing import Protocol
 
 WORD_PATTERN = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?")
 
+
 class TimestampedWord(Protocol):
     text: str
     start_sample: int
     end_sample: int
+
 
 @dataclass(frozen=True)
 class WordErrors:
@@ -23,7 +25,7 @@ class WordErrors:
 
     @property
     def total(self) -> int:
-        return(self.substitutions + self.deletions + self.insertions)
+        return self.substitutions + self.deletions + self.insertions
 
     @property
     def rate(self) -> float:
@@ -32,17 +34,19 @@ class WordErrors:
 
         return self.total / self.reference_words
 
+
 def normalize_words(text: str) -> tuple[str, ...]:
     normalized = text.casefold().replace("’", "'")
 
     return tuple(WORD_PATTERN.findall(normalized))
+
 
 def word_errors(reference: str, hypothesis: str) -> WordErrors:
     reference_words = normalize_words(reference)
     hypothesis_words = normalize_words(hypothesis)
 
     if not reference_words:
-        raise ValueError("refernce transcript must contain words")
+        raise ValueError("reference transcript must contain words")
 
     rows = len(reference_words) + 1
     columns = len(hypothesis_words) + 1
@@ -57,7 +61,7 @@ def word_errors(reference: str, hypothesis: str) -> WordErrors:
 
     for row in range(1, rows):
         for column in range(1, columns):
-            if (reference_words[row - 1] == hypothesis_words[column - 1]):
+            if reference_words[row - 1] == hypothesis_words[column - 1]:
                 substitution_cost = 0
             else:
                 substitution_cost = 1
@@ -65,8 +69,7 @@ def word_errors(reference: str, hypothesis: str) -> WordErrors:
             distances[row][column] = min(
                 distances[row - 1][column] + 1,
                 distances[row][column - 1] + 1,
-                distances[row - 1][column - 1]
-                + substitution_cost,
+                distances[row - 1][column - 1] + substitution_cost,
             )
 
     substitutions = 0
@@ -76,18 +79,18 @@ def word_errors(reference: str, hypothesis: str) -> WordErrors:
     column = len(hypothesis_words)
 
     while row > 0 or column > 0:
-        if (row > 0 and column > 0 and reference_words[row - 1] == hypothesis_words[column - 1]):
+        if row > 0 and column > 0 and reference_words[row - 1] == hypothesis_words[column - 1]:
             row -= 1
             column -= 1
             continue
 
-        if (row > 0 and column > 0 and distances[row][column] == distances[row - 1][column - 1] + 1): 
+        if row > 0 and column > 0 and distances[row][column] == distances[row - 1][column - 1] + 1:
             substitutions += 1
             row -= 1
             column -= 1
             continue
 
-        if (row > 0 and distances[row][column] == distances[row - 1][column] + 1):
+        if row > 0 and distances[row][column] == distances[row - 1][column] + 1:
             deletions += 1
             row -= 1
             continue
@@ -99,10 +102,14 @@ def word_errors(reference: str, hypothesis: str) -> WordErrors:
         substitutions=substitutions,
         deletions=deletions,
         insertions=insertions,
-        reference_words=len(reference_words)
+        reference_words=len(reference_words),
     )
 
-def percentile(values: Sequence[float], percentile_value: float,) -> float:
+
+def percentile(
+    values: Sequence[float],
+    percentile_value: float,
+) -> float:
     if not values:
         raise ValueError("percentile requires at least one value")
 
@@ -115,6 +122,7 @@ def percentile(values: Sequence[float], percentile_value: float,) -> float:
 
     return ordered[index]
 
+
 def count_overlapping_duplicates(words: Sequence[TimestampedWord]) -> int:
     duplicates = 0
 
@@ -122,7 +130,11 @@ def count_overlapping_duplicates(words: Sequence[TimestampedWord]) -> int:
         previous_text = normalize_words(previous.text)
         current_text = normalize_words(current.text)
 
-        if (previous_text and previous_text == current_text and current.start_sample < previous.end_sample):
+        if (
+            previous_text
+            and previous_text == current_text
+            and current.start_sample < previous.end_sample
+        ):
             duplicates += 1
 
     return duplicates

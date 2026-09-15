@@ -7,8 +7,7 @@ import {
     buildAudioFrame,
 } from "../catchall/static/audio-protocol.js";
 
-
-test("builds the binary audio fame header and payload", () => {
+test("builds the binary audio frame header and payload", () => {
     const samples = Int16Array.from([
         -32768,
         -1,

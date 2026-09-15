@@ -104,7 +104,7 @@ async def receive_messages(websocket: Any, state: StreamState) -> None:
         message = json.loads(raw_message)
         message_type = message.get("type")
 
-        if (message_type == "recognizer" and message.get("status") == "ready"):
+        if message_type == "recognizer" and message.get("status") == "ready":
             state.ready.set()
             configuration = message.get("configuration")
 
@@ -114,12 +114,12 @@ async def receive_messages(websocket: Any, state: StreamState) -> None:
             state.ready.set()
             continue
 
-        if (message_type == "error" and message.get("code") == "recognizer_unavailable"):
+        if message_type == "error" and message.get("code") == "recognizer_unavailable":
             state.startup_error = str(message.get("message"))
             state.ready.set()
             continue
 
-        if (message_type == "caption" and message.get("state") == "committed"):
+        if message_type == "caption" and message.get("state") == "committed":
             received_at = time.monotonic()
             state.committed.append((received_at, message))
 
@@ -156,20 +156,15 @@ async def request_capture_finalization(
     return (state.capture_finalized_at - state.capture_ended_at) * 1000
 
 
-async def send_pcm(websocket: Any, pcm: bytes, state: StreamState, started_at: float, realtime: bool) -> None:
+async def send_pcm(
+    websocket: Any, pcm: bytes, state: StreamState, started_at: float, realtime: bool
+) -> None:
     for offset in range(0, len(pcm), FRAME_BYTES):
         payload = pcm[offset : offset + FRAME_BYTES]
         sample_count = len(payload) // 2
 
         if realtime:
-            target_time = (
-                started_at
-                + (
-                    state.sent_samples
-                    + sample_count
-                )
-                / SAMPLE_RATE
-            )
+            target_time = started_at + (state.sent_samples + sample_count) / SAMPLE_RATE
             delay = target_time - time.monotonic()
 
             if delay > 0:
@@ -196,7 +191,9 @@ def count_duplicate_boundaries(committed_messages: list[dict[str, Any]]) -> int:
         if not previous_words or not current_words:
             continue
 
-        if (previous_words[-1] == current_words[0] and int(current["start_sample"]) < int(previous["end_sample"])):
+        if previous_words[-1] == current_words[0] and int(current["start_sample"]) < int(
+            previous["end_sample"]
+        ):
             duplicates += 1
 
     return duplicates
@@ -211,17 +208,10 @@ async def evaluate_clip(
     reference_path = audio_path.with_suffix(".txt")
 
     if not reference_path.is_file():
-        raise ValueError(
-            f"missing reference transcript: "
-            f"{reference_path}"
-        )
+        raise ValueError(f"missing reference transcript: {reference_path}")
 
     source_pcm = load_pcm16_mono(audio_path)
-    pcm, trimmed_samples = (
-        trim_trailing_silence(source_pcm)
-        if trim_silence
-        else (source_pcm, 0)
-    )
+    pcm, trimmed_samples = trim_trailing_silence(source_pcm) if trim_silence else (source_pcm, 0)
     reference = reference_path.read_text(encoding="utf-8").strip()
     state = StreamState()
 
@@ -269,20 +259,11 @@ async def evaluate_clip(
     errors = word_errors(reference, transcript)
 
     commit_latencies = [
-        (
-            received_at
-            - (
-                started_at
-                + int(message["end_sample"])
-                / SAMPLE_RATE
-            )
-        )
-        * 1000
-        for received_at, message
-        in state.committed
+        (received_at - (started_at + int(message["end_sample"]) / SAMPLE_RATE)) * 1000
+        for received_at, message in state.committed
     ]
 
-    audio_seconds = (len(pcm) / 2 / SAMPLE_RATE)
+    audio_seconds = len(pcm) / 2 / SAMPLE_RATE
 
     return {
         "clip": audio_path.name,
@@ -304,30 +285,17 @@ async def evaluate_clip(
             "substitutions": errors.substitutions,
             "deletions": errors.deletions,
             "insertions": errors.insertions,
-            "reference_words": (
-                errors.reference_words
-            ),
+            "reference_words": (errors.reference_words),
             "wer": round(errors.rate, 4),
         },
-        "commit_count": len(
-            committed_messages
-        ),
-        "commit_latencies_ms": [
-            round(value, 2)
-            for value in commit_latencies
-        ],
-        "recognition_lags_samples": (
-            state.recognition_lags
-        ),
+        "commit_count": len(committed_messages),
+        "commit_latencies_ms": [round(value, 2) for value in commit_latencies],
+        "recognition_lags_samples": (state.recognition_lags),
         "capture_finalize_latency_ms": round(
             capture_finalize_latency_ms,
             2,
         ),
-        "duplicate_boundaries": (
-            count_duplicate_boundaries(
-                committed_messages
-            )
-        ),
+        "duplicate_boundaries": (count_duplicate_boundaries(committed_messages)),
         "post_commit_retractions": 0,
         "server_stats": state.stats,
         "server_errors": state.errors,
@@ -345,11 +313,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     for result in results:
         counts = result["word_errors"]
 
-        total_errors += (
-            counts["substitutions"]
-            + counts["deletions"]
-            + counts["insertions"]
-        )
+        total_errors += counts["substitutions"] + counts["deletions"] + counts["insertions"]
         total_reference_words += counts["reference_words"]
         commit_latencies.extend(result["commit_latencies_ms"])
         recognition_lags.extend(result["recognition_lags_samples"])
@@ -362,10 +326,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
             4,
         ),
         "post_commit_retractions": 0,
-        "duplicate_boundaries": sum(
-            result["duplicate_boundaries"]
-            for result in results
-        ),
+        "duplicate_boundaries": sum(result["duplicate_boundaries"] for result in results),
         "dropped_samples": sum(
             int(
                 result["server_stats"].get(
@@ -392,15 +353,11 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
 
     if recognition_lags:
         summary["recognition_lag_p50_ms"] = round(
-            percentile(recognition_lags, 50)
-            / SAMPLE_RATE
-            * 1000,
+            percentile(recognition_lags, 50) / SAMPLE_RATE * 1000,
             2,
         )
         summary["recognition_lag_p90_ms"] = round(
-            percentile(recognition_lags, 90)
-            / SAMPLE_RATE
-            * 1000,
+            percentile(recognition_lags, 90) / SAMPLE_RATE * 1000,
             2,
         )
 
@@ -421,9 +378,7 @@ async def run(args: argparse.Namespace) -> None:
     paths = sorted(args.corpus.glob("*.wav"))
 
     if not paths:
-        raise SystemExit(
-            f"No WAV files found in {args.corpus}"
-        )
+        raise SystemExit(f"No WAV files found in {args.corpus}")
 
     results = []
 
@@ -437,10 +392,7 @@ async def run(args: argparse.Namespace) -> None:
         )
         results.append(result)
 
-        print(
-            f"  WER: "
-            f"{result['word_errors']['wer']:.3f}"
-        )
+        print(f"  WER: {result['word_errors']['wer']:.3f}")
 
     payload = {
         "created_at": datetime.now(UTC).isoformat(),
@@ -451,9 +403,7 @@ async def run(args: argparse.Namespace) -> None:
             "synthetic_trailing_silence": False,
             "trailing_silence_trimmed": not args.keep_trailing_silence,
             "trailing_silence_rms_threshold": (
-                TRAILING_SILENCE_RMS_THRESHOLD
-                if not args.keep_trailing_silence
-                else None
+                TRAILING_SILENCE_RMS_THRESHOLD if not args.keep_trailing_silence else None
             ),
         },
         "summary": summarize(results),
@@ -465,10 +415,7 @@ async def run(args: argparse.Namespace) -> None:
         parents=True,
         exist_ok=True,
     )
-    output_path = (
-        args.results
-        / "streaming-capture-end.json"
-    )
+    output_path = args.results / "streaming-capture-end.json"
     output_path.write_text(
         json.dumps(payload, indent=2),
         encoding="utf-8",
@@ -486,10 +433,7 @@ async def run(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Evaluate CatchAll's live WebSocket "
-            "caption pipeline."
-        )
+        description=("Evaluate CatchAll's live WebSocket caption pipeline.")
     )
     parser.add_argument(
         "--url",
@@ -508,10 +452,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-realtime",
         action="store_true",
-        help=(
-            "Send audio without pacing. "
-            "Latency results will be invalid."
-        ),
+        help=("Send audio without pacing. Latency results will be invalid."),
     )
     parser.add_argument(
         "--keep-trailing-silence",

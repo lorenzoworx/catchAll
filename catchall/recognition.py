@@ -14,9 +14,11 @@ class TimedWord:
     start_sample: int
     end_sample: int
 
+
 @dataclass(frozen=True)
 class RecognitionHypothesis:
     words: tuple[TimedWord, ...]
+
 
 @dataclass(frozen=True)
 class TranscriptCandidate:
@@ -28,28 +30,31 @@ class TranscriptCandidate:
     def text(self) -> str:
         return " ".join(word.text for word in self.words)
 
+
 class Recognizer(Protocol):
-    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
-        ...
+    def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis: ...
+
 
 @dataclass(frozen=True)
 class SilenceBoundary:
     at_sample: int
 
+
 CandidateHandler = Callable[[TranscriptCandidate], None]
 ErrorHandler = Callable[[str], None]
 SilenceHandler = Callable[[int], None]
 
+
 class RecognitionPipeline:
     def __init__(
-            self,
-            recognizer: Recognizer,
-            on_candidate: CandidateHandler,
-            on_error: ErrorHandler | None = None,
-            window_buffer: RecognitionWindowBuffer | None = None,
-            max_pending_windows: int = 2,
-            speech_gate: SpeechGate | None = None,
-            on_silence: SilenceHandler | None = None,
+        self,
+        recognizer: Recognizer,
+        on_candidate: CandidateHandler,
+        on_error: ErrorHandler | None = None,
+        window_buffer: RecognitionWindowBuffer | None = None,
+        max_pending_windows: int = 2,
+        speech_gate: SpeechGate | None = None,
+        on_silence: SilenceHandler | None = None,
     ) -> None:
         if max_pending_windows <= 0:
             raise ValueError("Pending-window capacity must be positive")
@@ -58,12 +63,14 @@ class RecognitionPipeline:
         self._on_candidate = on_candidate
         self._on_error = on_error
         self._on_silence = on_silence
-        self._window_buffer = window_buffer if window_buffer is not None else RecognitionWindowBuffer()
+        self._window_buffer = (
+            window_buffer if window_buffer is not None else RecognitionWindowBuffer()
+        )
         self._speech_gate = speech_gate
         self._max_pending_windows = max_pending_windows
         self._pending: asyncio.Queue[AudioWindow | SilenceBoundary] = asyncio.Queue()
         self._pending_window_count = 0
-        self._speech_active = False        
+        self._speech_active = False
         self._boundary_through_sample = 0
         self.rejected_windows = 0
         self.failed_windows = 0
@@ -77,7 +84,7 @@ class RecognitionPipeline:
         return self._pending_window_count
 
     def _queue_window(self, window: AudioWindow, *, force: bool = False) -> bool:
-        if (not force and self._pending_window_count >= self._max_pending_windows):
+        if not force and self._pending_window_count >= self._max_pending_windows:
             self.rejected_windows += 1
             return False
 
@@ -167,10 +174,11 @@ class RecognitionPipeline:
                         window.samples,
                     )
 
-                    absolute_words = tuple(TimedWord(
-                        text=word.text,
-                        start_sample=window.start_sample + word.start_sample,
-                        end_sample=window.start_sample + word.end_sample
+                    absolute_words = tuple(
+                        TimedWord(
+                            text=word.text,
+                            start_sample=window.start_sample + word.start_sample,
+                            end_sample=window.start_sample + word.end_sample,
                         )
                         for word in hypothesis.words
                     )
@@ -179,11 +187,11 @@ class RecognitionPipeline:
                             TranscriptCandidate(
                                 words=absolute_words,
                                 window_start_sample=window.start_sample,
-                                window_end_sample=window.end_sample
+                                window_end_sample=window.end_sample,
                             )
                         )
 
-                except Exception as error: #noqa: BLE001
+                except Exception as error:  # noqa: BLE001
                     self.failed_windows += 1
 
                     if self._on_error is not None:
@@ -204,6 +212,6 @@ class RecognitionPipeline:
 
                 self._pending.task_done()
 
+
 class SpeechGate(Protocol):
-    def has_speech(self, samples: Sequence[float]) -> bool:
-        ...
+    def has_speech(self, samples: Sequence[float]) -> bool: ...

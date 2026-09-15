@@ -37,169 +37,36 @@ TITLED_NAME_PATTERN = re.compile(
 CONTRAST_PAIRS = (
     (
         frozenset(
-            {
-                "begin",
-                "begins",
-                "began",
-                "beginning",
-                "start",
-                "starts",
-                "started",
-                "starting"
-            }
+            {"begin", "begins", "began", "beginning", "start", "starts", "started", "starting"}
         ),
+        frozenset({"stop", "stops", "stopped", "stopping", "end", "ends", "ended", "ending"}),
+    ),
+    (frozenset({"before", "earlier", "prior"}), frozenset({"after", "later", "following"})),
+    (
+        frozenset({"enable", "enabled", "allow", "allowed", "permit", "permitted"}),
         frozenset(
-            {
-                "stop",
-                "stops",
-                "stopped",
-                "stopping",
-                "end",
-                "ends",
-                "ended",
-                "ending"
-            }
-        )
+            {"disable", "disabled", "block", "blocked", "deny", "denied", "prohibit", "prohibited"}
+        ),
     ),
     (
-        frozenset(
-            {
-                "before",
-                "earlier",
-                "prior"
-            }
-        ),
-        frozenset(
-            {
-                "after",
-                "later",
-                "following"
-            }
-        )
+        frozenset({"increase", "increased", "raise", "raised", "grow", "grew"}),
+        frozenset({"decrease", "decreased", "lower", "lowered", "reduce", "reduced"}),
     ),
     (
+        frozenset({"save", "saved", "store", "stored", "retain", "retained", "keep", "kept"}),
         frozenset(
-            {
-                "enable",
-                "enabled",
-                "allow",
-                "allowed",
-                "permit",
-                "permitted"
-            }
+            {"delete", "deleted", "discard", "discarded", "erase", "erased", "remove", "removed"}
         ),
-        frozenset(
-            {
-                "disable",
-                "disabled",
-                "block",
-                "blocked",
-                "deny",
-                "denied",
-                "prohibit",
-                "prohibited"
-            }
-        )
+    ),
+    (frozenset({"open", "opened"}), frozenset({"close", "closed", "shut"})),
+    (
+        frozenset({"connect", "connected", "join", "joined"}),
+        frozenset({"disconnect", "disconnected", "leave", "left"}),
     ),
     (
-        frozenset(
-            {
-                "increase",
-                "increased",
-                "raise",
-                "raised",
-                "grow",
-                "grew"
-            }
-        ),
-        frozenset(
-            {
-                "decrease",
-                "decreased",
-                "lower",
-                "lowered",
-                "reduce",
-                "reduced"
-            }
-        )
+        frozenset({"accept", "accepted", "approve", "approved"}),
+        frozenset({"reject", "rejected", "decline", "declined"}),
     ),
-    (
-        frozenset(
-            {
-                "save",
-                "saved",
-                "store",
-                "stored",
-                "retain",
-                "retained",
-                "keep",
-                "kept"
-            }
-        ),
-        frozenset(
-            {
-                "delete",
-                "deleted",
-                "discard",
-                "discarded",
-                "erase",
-                "erased",
-                "remove",
-                "removed"
-            }
-        )
-    ),
-    (
-        frozenset(
-            {
-                "open",
-                "opened"
-            }
-        ),
-        frozenset(
-            {
-                "close",
-                "closed",
-                "shut"
-            }
-        )
-    ),
-    (
-        frozenset(
-            {
-                "connect",
-                "connected",
-                "join",
-                "joined"
-            }
-        ),
-        frozenset(
-            {
-                "disconnect",
-                "disconnected",
-                "leave",
-                "left"
-            }
-        )
-    ),
-    (
-        frozenset(
-            {
-                "accept",
-                "accepted",
-                "approve",
-                "approved"
-            }
-        ),
-        frozenset(
-            {
-                "reject",
-                "rejected",
-                "decline",
-                "declined"
-            }
-        )
-    )
 )
 
 DATE_WORDS = {
@@ -228,15 +95,20 @@ DATE_WORDS = {
     "tonight",
 }
 
+
 def extract_numbers(text: str) -> Counter[str]:
     return Counter(NUMBER_PATTERN.findall(text))
+
 
 def extract_dates(text: str) -> Counter[str]:
     dates = [match.group(0).casefold() for match in NUMERIC_DATE_PATTERN.finditer(text)]
 
-    dates.extend(word.casefold() for word in WORD_PATTERN.findall(text) if word.casefold() in DATE_WORDS)
+    dates.extend(
+        word.casefold() for word in WORD_PATTERN.findall(text) if word.casefold() in DATE_WORDS
+    )
 
     return Counter(dates)
+
 
 def extract_negations(text: str) -> Counter[str]:
     negations = []
@@ -251,10 +123,12 @@ def extract_negations(text: str) -> Counter[str]:
 
     return Counter(negations)
 
+
 def _is_sentence_start(text: str, word_start: int) -> bool:
     prefix = text[:word_start].rstrip()
 
     return not prefix or prefix[-1] in ".!?"
+
 
 def extract_names(text: str) -> Counter[str]:
     names: list[str] = []
@@ -271,7 +145,10 @@ def extract_names(text: str) -> Counter[str]:
     for match in CAPITALIZED_PATTERN.finditer(text):
         start, end = match.span()
 
-        if any(occupied_start <= start and end <= occupied_end for occupied_start, occupied_end in occupied_ranges):
+        if any(
+            occupied_start <= start and end <= occupied_end
+            for occupied_start, occupied_end in occupied_ranges
+        ):
             continue
 
         token = match.group(0)
@@ -281,22 +158,26 @@ def extract_names(text: str) -> Counter[str]:
 
     return Counter(names)
 
+
 class FaithfulnessGuard:
     def accepts(self, original: str, candidate: str) -> bool:
-        return(
+        return (
             extract_numbers(original) == extract_numbers(candidate)
             and extract_dates(original) == extract_dates(candidate)
             and extract_names(original) == extract_names(candidate)
             and extract_negations(original) == extract_negations(candidate)
         )
 
+
 class Guard(Protocol):
     def accepts(self, original: str, candidate: str) -> bool:
         """Return whether a rewrite is safe to display."""
 
+
 class SimilarityScorer(Protocol):
     def score(self, originial: str, candidate: str) -> float:
         """Return semantic similarity bettween zero and one."""
+
 
 class SemanticSimilarityGuard:
     def __init__(self, scorer: SimilarityScorer, minimum_similarity: float = 0.80) -> None:
@@ -309,10 +190,11 @@ class SemanticSimilarityGuard:
     def accepts(self, original: str, candidate: str) -> bool:
         try:
             similarity = float(self._scorer.score(original, candidate))
-        except Exception:   # noqa: BLE001
+        except Exception:  # noqa: BLE001
             return False
 
-        return (math.isfinite(similarity) and similarity >= self.minimum_similarity)
+        return math.isfinite(similarity) and similarity >= self.minimum_similarity
+
 
 class ContrastGuard:
     def accepts(self, original: str, candidate: str) -> bool:
@@ -323,7 +205,7 @@ class ContrastGuard:
             original_side = self._side(original_tokens, left_terms, right_terms)
             candidate_side = self._side(candidate_tokens, left_terms, right_terms)
 
-            if (original_side != 0 and candidate_side != 0 and original_side != candidate_side):
+            if original_side != 0 and candidate_side != 0 and original_side != candidate_side:
                 return False
 
         return True
@@ -338,6 +220,7 @@ class ContrastGuard:
 
         return 1 if contains_left else -1
 
+
 class CompositeGuard:
     def __init__(self, *guards: Guard) -> None:
         if not guards:
@@ -348,12 +231,19 @@ class CompositeGuard:
     def accepts(self, original: str, candidate: str) -> bool:
         return all(guard.accepts(original, candidate) for guard in self._guards)
 
+
 class NliScorer(Protocol):
     def score(self, original: str, candidate: str) -> BidirectionalNliResult:
         """Evaluate both entailment directions."""
 
+
 class BidirectionalEntailmentGuard:
-    def __init__(self, scorer: NliScorer, minimum_entailment: float = 0.80, maximum_contradiction: float = 0.20) -> None:
+    def __init__(
+        self,
+        scorer: NliScorer,
+        minimum_entailment: float = 0.80,
+        maximum_contradiction: float = 0.20,
+    ) -> None:
         if not 0.0 <= minimum_entailment <= 1.0:
             raise ValueError("minimum_entailment must be between zero and one")
 
@@ -367,9 +257,13 @@ class BidirectionalEntailmentGuard:
     def accepts(self, original: str, candidate: str) -> bool:
         try:
             result = self._scorer.score(original, candidate)
-        except Exception:   # noqa: BLE001
+        except Exception:  # noqa: BLE001
             return False
 
         directions = (result.original_to_candidate, result.candidate_to_original)
 
-        return all(direction.entailment >= self.minimum_entailment and direction.contradiction <= self.maximum_contradiction for direction in directions)
+        return all(
+            direction.entailment >= self.minimum_entailment
+            and direction.contradiction <= self.maximum_contradiction
+            for direction in directions
+        )

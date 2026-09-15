@@ -33,11 +33,18 @@ class SimplificationResult:
     start_sample: int
     end_sample: int
 
+
 ResultHandler = Callable[[SimplificationResult], None]
 
 
 class SimplificationPipeline:
-    def __init__(self, simplifier: Simplifier, guard: RewriteGuard, on_result: ResultHandler, max_pending_sentences: int = 16) -> None:
+    def __init__(
+        self,
+        simplifier: Simplifier,
+        guard: RewriteGuard,
+        on_result: ResultHandler,
+        max_pending_sentences: int = 16,
+    ) -> None:
         if max_pending_sentences <= 0:
             raise ValueError("max_pending_sentences must be positive")
 
@@ -115,7 +122,7 @@ class SimplificationPipeline:
                 start_sample=sentence.start_sample,
                 end_sample=sentence.end_sample,
             )
-        except Exception:   #noqa: BLE001
+        except Exception:  # noqa: BLE001
             return self._fallback(sentence, sentence_id)
 
     @staticmethod

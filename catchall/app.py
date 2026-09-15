@@ -36,13 +36,12 @@ _SHARED_PLAIN_LANGUAGE_GUARD = CompositeGuard(
     FaithfulnessGuard(),
     ContrastGuard(),
     BidirectionalEntailmentGuard(
-        scorer=_SHARED_NLI_SCORER,
-        minimum_entailment=0.80,
-        maximum_contradiction=0.20
-    )
+        scorer=_SHARED_NLI_SCORER, minimum_entailment=0.80, maximum_contradiction=0.20
+    ),
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
+
 
 def create_whisper_recognizer() -> WhisperRecognizer:
     settings = RecognitionSettings.from_environment()
@@ -53,19 +52,21 @@ def create_whisper_recognizer() -> WhisperRecognizer:
         compute_type=settings.compute_type,
     )
 
+
 app = FastAPI(title="CatchAll")
-app.state.recognizer_provider = RecognizerProvider(
-    create_whisper_recognizer
-)
+app.state.recognizer_provider = RecognizerProvider(create_whisper_recognizer)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
+
 @app.get("/", include_in_schema=False)
-def inded() -> FileResponse:
+def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
 
 @app.websocket("/ws")
 async def caption_socket(websocket: WebSocket) -> None:
@@ -100,8 +101,8 @@ async def caption_socket(websocket: WebSocket) -> None:
 
     try:
         recognizer = await websocket.app.state.recognizer_provider.get()
-    except Exception as error:  #noqa: BLE001
-                                # Model loading can raise several third-party exception types. So we convert them into one stable WebSocket error response
+    except Exception as error:  # noqa: BLE001
+        # Model loading can raise several third-party exception types. So we convert them into one stable WebSocket error response
         await send_message(
             {
                 "type": "error",
@@ -134,15 +135,17 @@ async def caption_socket(websocket: WebSocket) -> None:
     sentence_assembler = SentenceAssembler()
 
     def on_simplification_result(result: SimplificationResult) -> None:
-        recognition_messages.put_nowait({
-          "type": "plain_caption",
-            "sentence_id": result.sentence_id,
-            "text": result.text,
-            "original": result.original,
-            "status": result.status,
-            "start_sample": result.start_sample,
-            "end_sample": result.end_sample,  
-        })
+        recognition_messages.put_nowait(
+            {
+                "type": "plain_caption",
+                "sentence_id": result.sentence_id,
+                "text": result.text,
+                "original": result.original,
+                "status": result.status,
+                "start_sample": result.start_sample,
+                "end_sample": result.end_sample,
+            }
+        )
 
     simplification_pipeline = SimplificationPipeline(
         simplifier=RuleBasedSimplifier(),
@@ -163,13 +166,15 @@ async def caption_socket(websocket: WebSocket) -> None:
         if not words:
             return
 
-        recognition_messages.put_nowait({
-            "type": "caption",
-            "state": "committed",
-            "text": " ".join(word.text for word in words),
-            "start_sample": words[0].start_sample,
-            "end_sample": words[-1].end_sample,
-        })
+        recognition_messages.put_nowait(
+            {
+                "type": "caption",
+                "state": "committed",
+                "text": " ".join(word.text for word in words),
+                "start_sample": words[0].start_sample,
+                "end_sample": words[-1].end_sample,
+            }
+        )
 
         accept_completed_sentences(sentence_assembler.add(words))
 
@@ -177,13 +182,15 @@ async def caption_socket(websocket: WebSocket) -> None:
         result = agreement.update(candidate.words)
         accept_committed_words(result.committed)
 
-        recognition_messages.put_nowait({
-            "type": "caption",
-            "state": "provisional",
-            "text": " ".join(word.text for word in result.provisional),
-            "window_start_sample": candidate.window_start_sample,
-            "window_end_sample": candidate.window_end_sample,
-        })
+        recognition_messages.put_nowait(
+            {
+                "type": "caption",
+                "state": "provisional",
+                "text": " ".join(word.text for word in result.provisional),
+                "window_start_sample": candidate.window_start_sample,
+                "window_end_sample": candidate.window_end_sample,
+            }
+        )
 
     def on_silence(at_sample: int) -> None:
         result = agreement.finalize()
@@ -195,20 +202,24 @@ async def caption_socket(websocket: WebSocket) -> None:
             accept_completed_sentences((pending_sentence,))
 
         if result.committed:
-            recognition_messages.put_nowait({
-                "type": "caption",
-                "state": "provisional",
-                "text": "",
-                "window_start_sample": at_sample,
-                "window_end_sample": at_sample,
-            })
+            recognition_messages.put_nowait(
+                {
+                    "type": "caption",
+                    "state": "provisional",
+                    "text": "",
+                    "window_start_sample": at_sample,
+                    "window_end_sample": at_sample,
+                }
+            )
 
     def on_recognition_error(message: str) -> None:
-        recognition_messages.put_nowait({
-            "type": "error",
-            "code": "recognition_failed",
-            "message": message,
-        })
+        recognition_messages.put_nowait(
+            {
+                "type": "error",
+                "code": "recognition_failed",
+                "message": message,
+            }
+        )
 
     pipeline = RecognitionPipeline(
         recognizer=recognizer,
@@ -276,7 +287,7 @@ async def caption_socket(websocket: WebSocket) -> None:
                     rejected_frames += 1
 
                     await send_message(
-                       {
+                        {
                             "type": "error",
                             "code": "audio_buffer_full",
                             "dropped_samples": len(frame.samples) - accepted,
@@ -326,37 +337,43 @@ async def caption_socket(websocket: WebSocket) -> None:
                         "plain_language_enabled": plain_language_enabled,
                         "processed_plain_sentences": simplification_pipeline.processed_sentences,
                         "fallback_plain_sentences": simplification_pipeline.fallback_sentences,
-                        "rejected_plain_sentences": simplification_pipeline.rejected_sentences
+                        "rejected_plain_sentences": simplification_pipeline.rejected_sentences,
                     }
                 )
             elif message.get("type") == "plain_language":
                 enabled = message.get("enabled")
 
                 if not isinstance(enabled, bool):
-                    await send_message({
-                        "type": "error",
-                        "code": "invalid_plain_language_setting",
-                        "message": "enabled must be a boolean."
-                    })
+                    await send_message(
+                        {
+                            "type": "error",
+                            "code": "invalid_plain_language_setting",
+                            "message": "enabled must be a boolean.",
+                        }
+                    )
                     continue
 
                 plain_language_enabled = enabled
 
-                await send_message({
-                    "type": "plain_language",
-                    "enabled": plain_language_enabled,
-                    "processing": "local"
-                })
+                await send_message(
+                    {
+                        "type": "plain_language",
+                        "enabled": plain_language_enabled,
+                        "processing": "local",
+                    }
+                )
             elif message.get("type") == "capture_end":
                 consumer.drain_all()
                 pipeline.finish_utterance()
                 await pipeline.wait_until_idle()
                 await simplification_pipeline.wait_until_idle()
 
-                recognition_messages.put_nowait({
-                    "type": "capture",
-                    "status": "finalized",
-                })
+                recognition_messages.put_nowait(
+                    {
+                        "type": "capture",
+                        "status": "finalized",
+                    }
+                )
             else:
                 await send_message(
                     {

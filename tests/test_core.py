@@ -14,6 +14,7 @@ def test_native_ring_round_trip() -> None:
     assert ring.read(3) == pytest.approx([1.0, 2.0, 3.0])
     assert ring.size == 0
 
+
 def test_native_ring_rejects_overflow() -> None:
     ring = _core.AudioRing(3)
 
@@ -22,6 +23,7 @@ def test_native_ring_rejects_overflow() -> None:
     assert accepted == 3
     assert ring.dropped_samples == 2
     assert ring.read(3) == pytest.approx([1.0, 2.0, 3.0])
+
 
 def test_native_ring_insufficient_read_returns_none() -> None:
     ring = _core.AudioRing(4)

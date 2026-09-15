@@ -10,11 +10,10 @@ from catchall.recognizer_provider import RecognizerProvider
 
 class FakeRecognizer:
     def transcribe(self, samples: Sequence[float]) -> RecognitionHypothesis:
-        return RecognitionHypothesis(words=(TimedWord(
-            text="test",
-            start_sample=0,
-            end_sample=len(samples)
-        ),))
+        return RecognitionHypothesis(
+            words=(TimedWord(text="test", start_sample=0, end_sample=len(samples)),)
+        )
+
 
 def test_loads_recognizer_only_once() -> None:
     async def scenario() -> None:
@@ -43,6 +42,7 @@ def test_loads_recognizer_only_once() -> None:
 
     asyncio.run(scenario())
 
+
 def test_loads_recognizer_off_event_loop_thread() -> None:
     async def scenario() -> None:
         event_loop_thread = threading.get_ident()
@@ -63,6 +63,7 @@ def test_loads_recognizer_off_event_loop_thread() -> None:
 
     asyncio.run(scenario())
 
+
 def test_failed_load_can_be_retried() -> None:
     async def scenario() -> None:
         factory_calls = 0
@@ -75,6 +76,7 @@ def test_failed_load_can_be_retried() -> None:
                 raise RuntimeError("model failed to load")
 
             return FakeRecognizer()
+
         provider = RecognizerProvider(factory)
 
         with pytest.raises(
@@ -88,4 +90,5 @@ def test_failed_load_can_be_retried() -> None:
         assert isinstance(recognizer, FakeRecognizer)
         assert factory_calls == 2
         assert provider.loaded is True
+
     asyncio.run(scenario())

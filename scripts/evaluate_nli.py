@@ -7,11 +7,8 @@ from pathlib import Path
 from catchall.nli import BidirectionalNliScorer
 from catchall.rewrite_guard import CompositeGuard, ContrastGuard, FaithfulnessGuard
 
-DATASET_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "evaluation"
-    / "semantic_pairs.json"
-)
+DATASET_PATH = Path(__file__).resolve().parents[1] / "evaluation" / "semantic_pairs.json"
+
 
 @dataclass(frozen=True)
 class EvaluationPair:
@@ -20,11 +17,13 @@ class EvaluationPair:
     original: str
     candidate: str
 
+
 @dataclass(frozen=True)
 class EvaluationResult:
     safe: bool
     minimum_entailment: float
     maximum_contradiction: float
+
 
 def load_pairs() -> list[EvaluationPair]:
     raw_pairs = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
@@ -36,14 +35,17 @@ def load_pairs() -> list[EvaluationPair]:
         if not isinstance(safe, bool):
             raise TypeError(f"{item['id']}: safe must be a JSON boolean")
 
-        pairs.append(EvaluationPair(
-            identifier=item["id"],
-            safe=safe,
-            original=item["original"],
-            candidate=item["candidate"]
-        ))
+        pairs.append(
+            EvaluationPair(
+                identifier=item["id"],
+                safe=safe,
+                original=item["original"],
+                candidate=item["candidate"],
+            )
+        )
 
     return pairs
+
 
 def main() -> None:
     scorer = BidirectionalNliScorer()
@@ -60,7 +62,7 @@ def main() -> None:
     )
 
     for pair in load_pairs():
-        details_pass =  pre_nli_guard.accepts(pair.original, pair.candidate)
+        details_pass = pre_nli_guard.accepts(pair.original, pair.candidate)
         result = scorer.score(pair.original, pair.candidate)
 
         forward = result.original_to_candidate
@@ -82,11 +84,13 @@ def main() -> None:
         if not details_pass:
             continue
 
-        measurements.append(EvaluationResult(
-            safe=pair.safe,
-            minimum_entailment=min(forward.entailment, reverse.entailment),
-            maximum_contradiction=max(forward.contradiction, reverse.contradiction)
-        ))
+        measurements.append(
+            EvaluationResult(
+                safe=pair.safe,
+                minimum_entailment=min(forward.entailment, reverse.entailment),
+                maximum_contradiction=max(forward.contradiction, reverse.contradiction),
+            )
+        )
 
     safe_results = [result for result in measurements if result.safe]
     unsafe_results = [result for result in measurements if not result.safe]

@@ -23,23 +23,31 @@ DEFAULT_REPLACEMENTS = (
     ("purchase", "buy"),
 )
 
+
 class RuleBasedSimplifier:
-    def __init__(self, replacements: tuple[tuple[str, str], ...,] = DEFAULT_REPLACEMENTS) -> None:
-        self._rules = tuple((
-            re.compile(rf"\b{re.escape(source)}\b", re.IGNORECASE),
-            replacement,
-        ) for source, replacement in replacements)
+    def __init__(
+        self,
+        replacements: tuple[
+            tuple[str, str],
+            ...,
+        ] = DEFAULT_REPLACEMENTS,
+    ) -> None:
+        self._rules = tuple(
+            (
+                re.compile(rf"\b{re.escape(source)}\b", re.IGNORECASE),
+                replacement,
+            )
+            for source, replacement in replacements
+        )
 
     def simplify(self, text: str) -> str:
         rewritten = text
 
         for pattern, replacement in self._rules:
             rewritten = pattern.sub(
-                lambda match, replacement=replacement: (
-                    self._match_case(
-                        match.group(0),
-                        replacement,
-                    )
+                lambda match, replacement=replacement: self._match_case(
+                    match.group(0),
+                    replacement,
                 ),
                 rewritten,
             )
@@ -52,6 +60,6 @@ class RuleBasedSimplifier:
             return replacement.upper()
 
         if original[0].isupper():
-            return (replacement[0].upper() + replacement[1:])
+            return replacement[0].upper() + replacement[1:]
 
         return replacement

@@ -3,7 +3,13 @@ from math import fsum, sqrt
 
 
 class EnergySpeechGate:
-    def __init__(self, threshold: float = 0.01, frame_samples: int = 320, lookback_samples: int = 8_000, min_active_frames: int = 2) -> None:
+    def __init__(
+        self,
+        threshold: float = 0.01,
+        frame_samples: int = 320,
+        lookback_samples: int = 8_000,
+        min_active_frames: int = 2,
+    ) -> None:
         if threshold < 0:
             raise ValueError("Threshold cannot be negative")
 
@@ -16,7 +22,7 @@ class EnergySpeechGate:
         if min_active_frames <= 0:
             raise ValueError("Minimum active frames must be positive")
 
-        if (min_active_frames * frame_samples > lookback_samples):
+        if min_active_frames * frame_samples > lookback_samples:
             raise ValueError("Lookback is too short for active-frame count")
 
         self._threshold = threshold
@@ -40,7 +46,7 @@ class EnergySpeechGate:
             if rms >= self._threshold:
                 active_frames += 1
 
-                if(active_frames >= self._min_active_frames):
+                if active_frames >= self._min_active_frames:
                     return True
 
         return False

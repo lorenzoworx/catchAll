@@ -17,14 +17,14 @@ from evaluation.run_streaming import (
 )
 
 
-def write_wav(path: Path, *, sample_rate: int = 16_000, channels: int = 1, sample_width: int = 2) -> None:
+def write_wav(
+    path: Path, *, sample_rate: int = 16_000, channels: int = 1, sample_width: int = 2
+) -> None:
     with wave.open(str(path), "wb") as audio:
         audio.setnchannels(channels)
         audio.setsampwidth(sample_width)
         audio.setframerate(sample_rate)
-        audio.writeframes(
-            b"\x00\x00" * FRAME_SAMPLES
-        )
+        audio.writeframes(b"\x00\x00" * FRAME_SAMPLES)
 
 
 def test_loads_expected_wav_format(tmp_path: Path) -> None:
@@ -78,7 +78,9 @@ def test_rejects_invalid_silence_trimming_configuration(
         (16_000, 1, 1),
     ],
 )
-def test_rejects_incorrect_wav_format(tmp_path: Path, sample_rate: int, channels: int, sample_width: int) -> None:
+def test_rejects_incorrect_wav_format(
+    tmp_path: Path, sample_rate: int, channels: int, sample_width: int
+) -> None:
     path = tmp_path / "clip.wav"
     write_wav(
         path,

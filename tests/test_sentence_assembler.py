@@ -5,6 +5,7 @@ from catchall.sentence_assembler import SentenceAssembler, ends_sentence
 def word(text: str, start_sample: int, end_sample: int) -> TimedWord:
     return TimedWord(text=text, start_sample=start_sample, end_sample=end_sample)
 
+
 def test_recognizes_sentence_punctuation() -> None:
     assert ends_sentence("Hello.") is True
     assert ends_sentence("Really?") is True
@@ -16,10 +17,12 @@ def test_recognizes_sentence_punctuation() -> None:
 def test_waits_for_sentence_ending() -> None:
     assembler = SentenceAssembler()
 
-    completed = assembler.add((
-        word("Hello", 0, 100),
-        word("there", 100, 200),
-    ))
+    completed = assembler.add(
+        (
+            word("Hello", 0, 100),
+            word("there", 100, 200),
+        )
+    )
 
     assert completed == ()
     assert len(assembler.pending_words) == 2
@@ -30,10 +33,12 @@ def test_assembles_across_committed_batches() -> None:
 
     assert assembler.add((word("Hello", 0, 100),)) == ()
 
-    completed = assembler.add((
-        word("there.", 100, 200),
-        word("How", 200, 300),
-    ))
+    completed = assembler.add(
+        (
+            word("there.", 100, 200),
+            word("How", 200, 300),
+        )
+    )
 
     assert len(completed) == 1
     assert completed[0].text == "Hello there."
@@ -46,24 +51,31 @@ def test_assembles_across_committed_batches() -> None:
 def test_emits_multiple_sentences_from_one_batch() -> None:
     assembler = SentenceAssembler()
 
-    completed = assembler.add((
-        word("Hello.", 0, 100),
-        word("How", 100, 200),
-        word("are", 200, 300),
-        word("you?", 300, 400),
-    ))
+    completed = assembler.add(
+        (
+            word("Hello.", 0, 100),
+            word("How", 100, 200),
+            word("are", 200, 300),
+            word("you?", 300, 400),
+        )
+    )
 
-    assert tuple(sentence.text for sentence in completed) == ("Hello.", "How are you?",)
+    assert tuple(sentence.text for sentence in completed) == (
+        "Hello.",
+        "How are you?",
+    )
 
 
 def test_flush_returns_incomplete_sentence() -> None:
     assembler = SentenceAssembler()
 
-    assembler.add((
-        word("No", 0, 100),
-        word("punctuation", 100, 200),
-    ))
-    
+    assembler.add(
+        (
+            word("No", 0, 100),
+            word("punctuation", 100, 200),
+        )
+    )
+
     sentence = assembler.flush()
 
     assert sentence is not None

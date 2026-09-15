@@ -9,7 +9,7 @@ CLOSING_CHARACTERS = "\"'”’)]}"
 def ends_sentence(text: str) -> bool:
     candidate = text.rstrip()
 
-    while (candidate and candidate[-1] in CLOSING_CHARACTERS):
+    while candidate and candidate[-1] in CLOSING_CHARACTERS:
         candidate = candidate[:-1].rstrip()
 
     return candidate.endswith((".", "?", "!"))
@@ -47,11 +47,7 @@ class SentenceAssembler:
             self._pending.append(word)
 
             if ends_sentence(word.text):
-                completed.append(
-                    CommittedSentence(
-                        words=tuple(self._pending)
-                    )
-                )
+                completed.append(CommittedSentence(words=tuple(self._pending)))
                 self._pending.clear()
 
         return tuple(completed)

@@ -7,6 +7,7 @@ from catchall.recognition import Recognizer
 
 RecognizerFactory = Callable[[], Recognizer]
 
+
 class RecognizerProvider:
     def __init__(self, factory: RecognizerFactory) -> None:
         self._factory = factory
@@ -23,8 +24,6 @@ class RecognizerProvider:
 
         async with self._lock:
             if self._recognizer is None:
-                self._recognizer = await asyncio.to_thread(
-                    self._factory
-                )
+                self._recognizer = await asyncio.to_thread(self._factory)
 
         return self._recognizer

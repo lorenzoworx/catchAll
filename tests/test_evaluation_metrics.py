@@ -18,9 +18,7 @@ class Word:
 
 
 def test_normalizes_case_and_punctuation() -> None:
-    assert normalize_words(
-        "Hello, WORLD! Don’t stop."
-    ) == (
+    assert normalize_words("Hello, WORLD! Don’t stop.") == (
         "hello",
         "world",
         "don't",

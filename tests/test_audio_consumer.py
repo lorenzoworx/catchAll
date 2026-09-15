@@ -15,6 +15,7 @@ def test_drains_complete_audio_chunks() -> None:
     assert ring.size == 0
     assert consumer.consumed_samples == 640
 
+
 def test_leaves_incomplete_chunk_buffered() -> None:
     ring = _core.AudioRing(1_000)
     consumer = AudioConsumer(ring, chunk_samples=320)
@@ -24,6 +25,7 @@ def test_leaves_incomplete_chunk_buffered() -> None:
 
     assert ring.size == 80
     assert consumer.consumed_samples == 320
+
 
 def test_drain_all_delivers_the_final_partial_chunk() -> None:
     ring = _core.AudioRing(1_000)
@@ -40,6 +42,7 @@ def test_drain_all_delivers_the_final_partial_chunk() -> None:
     assert ring.size == 0
     assert consumer.consumed_samples == 400
     assert [len(chunk) for chunk in delivered] == [320, 80]
+
 
 def test_background_consumer_drains_after_notification() -> None:
     async def scenario() -> None:
@@ -62,6 +65,7 @@ def test_background_consumer_drains_after_notification() -> None:
                 await task
 
     asyncio.run(scenario())
+
 
 def test_delivers_consumed_chunks_to_handler() -> None:
     ring = _core.AudioRing(1_000)

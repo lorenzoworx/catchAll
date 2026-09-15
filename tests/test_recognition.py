@@ -21,12 +21,16 @@ class FakeRecognizer:
         if not text:
             return RecognitionHypothesis(words=())
 
-        return RecognitionHypothesis(words=(TimedWord(
-            text=text,
-            start_sample=0,
-            end_sample=len(snapshot),
-            
-        ),))
+        return RecognitionHypothesis(
+            words=(
+                TimedWord(
+                    text=text,
+                    start_sample=0,
+                    end_sample=len(snapshot),
+                ),
+            )
+        )
+
 
 def test_audio_window_produces_transcript_candidate() -> None:
     async def scenario() -> None:
@@ -49,9 +53,7 @@ def test_audio_window_produces_transcript_candidate() -> None:
 
             await pipeline.wait_until_idle()
 
-            assert recognizer.calls == [
-                (0.0, 1.0, 2.0, 3.0)
-            ]
+            assert recognizer.calls == [(0.0, 1.0, 2.0, 3.0)]
             assert len(candidates) == 1
             assert candidates[0].text == "hello world"
             assert candidates[0].window_start_sample == 0
@@ -63,6 +65,7 @@ def test_audio_window_produces_transcript_candidate() -> None:
                 await task
 
     asyncio.run(scenario())
+
 
 def test_empty_transcript_is_not_emitted() -> None:
     async def scenario() -> None:
@@ -90,23 +93,21 @@ def test_empty_transcript_is_not_emitted() -> None:
             with suppress(asyncio.CancelledError):
                 await task
 
-    asyncio.run(scenario()) 
+    asyncio.run(scenario())
+
 
 def test_rejects_windows_when_queue_is_full() -> None:
     pipeline = RecognitionPipeline(
         recognizer=FakeRecognizer(),
         on_candidate=lambda candidate: None,
-        window_buffer=RecognitionWindowBuffer(
-            min_samples=4,
-            max_samples=8,
-            hop_samples=2
-        ),
+        window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2),
         max_pending_windows=1,
     )
 
     assert pipeline.accept_audio(range(6)) == 1
     assert pipeline.pending_windows == 1
     assert pipeline.rejected_windows == 1
+
 
 def test_reports_recognizer_failures() -> None:
     class BrokenRecognizer:
@@ -143,35 +144,48 @@ def test_reports_recognizer_failures() -> None:
 
     asyncio.run(scenario())
 
+
 def test_silence_does_not_queue_recognition() -> None:
     pipeline = RecognitionPipeline(
         recognizer=FakeRecognizer(),
         on_candidate=lambda candidate: None,
         window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2),
-        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1)
+        speech_gate=EnergySpeechGate(
+            threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1
+        ),
     )
 
     assert pipeline.accept_audio([0.0] * 4) == 0
     assert pipeline.pending_windows == 0
     assert pipeline.skipped_silence_windows == 1
 
+
 def test_active_audio_queues_recognition() -> None:
     pipeline = RecognitionPipeline(
         recognizer=FakeRecognizer(),
         on_candidate=lambda candidate: None,
         window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2),
-        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1)
-        )
+        speech_gate=EnergySpeechGate(
+            threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1
+        ),
+    )
     assert pipeline.accept_audio([0.1] * 4) == 1
     assert pipeline.pending_windows == 1
     assert pipeline.skipped_silence_windows == 0
+
 
 def test_continuing_silence_does_not_repeat_boundary() -> None:
     pipeline = RecognitionPipeline(
         recognizer=FakeRecognizer(),
         on_candidate=lambda candidate: None,
-        window_buffer=RecognitionWindowBuffer(min_samples=4, max_samples=8, hop_samples=2,),
-        speech_gate=EnergySpeechGate(threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1),
+        window_buffer=RecognitionWindowBuffer(
+            min_samples=4,
+            max_samples=8,
+            hop_samples=2,
+        ),
+        speech_gate=EnergySpeechGate(
+            threshold=0.05, frame_samples=2, lookback_samples=4, min_active_frames=1
+        ),
         max_pending_windows=4,
     )
 
@@ -182,6 +196,7 @@ def test_continuing_silence_does_not_repeat_boundary() -> None:
     assert pipeline.silence_boundaries == 1
     assert pipeline.final_silence_windows == 1
     assert pipeline.skipped_silence_windows == 2
+
 
 def test_capture_end_runs_a_final_pass_for_a_short_utterance() -> None:
     async def scenario() -> None:
@@ -225,6 +240,7 @@ def test_capture_end_runs_a_final_pass_for_a_short_utterance() -> None:
 
     asyncio.run(scenario())
 
+
 def test_empty_final_pass_is_emitted_to_clear_a_stale_hypothesis() -> None:
     class EmptyFinalRecognizer:
         def __init__(self) -> None:
@@ -234,9 +250,7 @@ def test_empty_final_pass_is_emitted_to_clear_a_stale_hypothesis() -> None:
             self.calls += 1
 
             if self.calls == 1:
-                return RecognitionHypothesis(words=(
-                    TimedWord("maybe", 0, len(samples)),
-                ))
+                return RecognitionHypothesis(words=(TimedWord("maybe", 0, len(samples)),))
 
             return RecognitionHypothesis(words=())
 

@@ -130,13 +130,14 @@ def test_full_queue_rejects_new_sentence() -> None:
     assert pipeline.accept(make_sentence()) is False
     assert pipeline.rejected_sentences == 1
 
+
 def test_full_queue_rejects_with_verbatim_fallback() -> None:
     results = []
     pipeline = SimplificationPipeline(
         simplifier=FixedSimplifier("Plain text."),
         guard=AcceptingGuard(),
         on_result=results.append,
-        max_pending_sentences=1
+        max_pending_sentences=1,
     )
 
     sentence = make_sentence()
