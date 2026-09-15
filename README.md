@@ -61,7 +61,7 @@ CATCHALL_WHISPER_COMPUTE_TYPE=int8 \
 .venv/bin/uvicorn catchall.app:app
 ```
 
-The current four-clip evaluation favored `tiny.en`: the latest capture-end run measured 0.2622 corpus word error rate, 769.69 ms median commit latency, and 143.11 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md) and [capture-end comparison](evaluation/results/capture-end-comparison.md) for scope and caveats.
+The current four-clip evaluation favored `tiny.en`: the latest capture-end run measured 0.2622 corpus word error rate, 769.69 ms median commit latency, and 143.11 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md), [capture-end comparison](evaluation/results/capture-end-comparison.md), and [manual browser acceptance](evaluation/results/manual-browser-acceptance.md) for scope and caveats.
 
 ## Verification
 
