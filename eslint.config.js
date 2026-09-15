@@ -10,7 +10,10 @@ export default [
     },
     js.configs.recommended,
     {
-        files: ["catchall/static/app.js"],
+        files: [
+            "catchall/static/app.js",
+            "catchall/static/connection-lifecycle.js",
+        ],
         languageOptions: {
             sourceType: "module",
             globals: {

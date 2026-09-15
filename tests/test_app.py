@@ -103,6 +103,14 @@ def test_javascript_is_served() -> None:
     assert '"plain_language"' in response.text
     assert '"plain_caption"' in response.text
 
+def test_connection_lifecycle_javascript_is_served() -> None:
+    response = client.get("/static/connection-lifecycle.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "ReconnectingSocket" in response.text
+    assert "CaptionSessionState" in response.text
+
 def test_websocket_consumes_binary_audio() -> None:
     samples = [0] * 320
     header = AUDIO_HEADER.pack(
