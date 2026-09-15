@@ -223,6 +223,14 @@ def test_browser_audio_protocol_module_is_served() -> None:
     assert "javascript" in response.headers["content-type"]
 
 
+def test_caption_transcript_state_javascript_is_served() -> None:
+    response = client.get("/static/caption-transcript-state.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "CaptionTranscriptState" in response.text
+
+
 def test_websocket_emits_provisional_caption() -> None:
     samples = [12_000] * 320
 

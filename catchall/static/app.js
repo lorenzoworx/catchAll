@@ -1,4 +1,5 @@
 import { buildAudioFrame } from "./audio-protocol.js";
+import { CaptionTranscriptState } from "./caption-transcript-state.js";
 import {
     AudioCaptureSession,
     describeMicrophoneError,
@@ -10,7 +11,6 @@ import {
 } from "./connection-lifecycle.js";
 import {
     buildTranscriptDocument,
-    clearTranscriptData,
     formatTranscriptText,
     makeTranscriptFilename,
 } from "./transcript-export.js";
@@ -32,15 +32,12 @@ const clearButton = document.querySelector("#clear-button");
 const clearDialog = document.querySelector("#clear-dialog");
 const transcriptStatus = document.querySelector("#transcript-status");
 
-const committedTranscriptSegments = [];
-const plainTranscriptCaptions = new Map();
+const transcriptState = new CaptionTranscriptState();
 const sessionState = new CaptionSessionState();
 const audioSupport = detectAudioCaptureSupport(window);
 
 let connection = null;
 let serverReady = false;
-let hasCommittedCaptions = false;
-let hasPlainLanguageCaptions = false;
 
 const captureSession = new AudioCaptureSession({
     environment: window,
@@ -73,7 +70,7 @@ function setReadyMicrophoneState(status = "Microphone ready") {
 }
 
 function updateTranscriptActions() {
-    const hasTranscript = committedTranscriptSegments.length > 0;
+    const hasTranscript = transcriptState.hasCommittedCaptions;
 
     exportButton.disabled = !hasTranscript;
     clearButton.disabled = !hasTranscript || captureSession.busy;
@@ -164,20 +161,16 @@ function handleSocketMessage(event) {
     }
 
     if (message.type === "caption" && message.state === "committed") {
-        if (!hasCommittedCaptions) {
+        const update = transcriptState.recordCommitted(message);
+
+        if (update.firstCaption) {
             finalizedCaptions.textContent = "";
-            hasCommittedCaptions = true;
         }
 
         const segment = document.createElement("span");
-        segment.textContent = `${message.text} `;
+        segment.textContent = `${update.segment.text} `;
 
         finalizedCaptions.append(segment);
-        committedTranscriptSegments.push({
-            text: message.text,
-            startSample: message.start_sample,
-            endSample: message.end_sample,
-        });
 
         transcriptStatus.textContent = "";
         updateTranscriptActions();
@@ -195,48 +188,33 @@ function handleSocketMessage(event) {
         if (sessionState.plainLanguageEnabled) {
             plainLanguageStatus.textContent = "On. Finalized sentences are rewritten locally.";
 
-            if (!hasPlainLanguageCaptions) {
+            if (!transcriptState.hasPlainCaptions) {
                 plainLanguageCaptions.textContent = "Waiting for a finalized sentence...";
             }
         } else {
             plainLanguageStatus.textContent = "Off. Plain-language processing is local.";
             plainLanguageCaptions.textContent = "Plain-language captions are off.";
-            hasPlainLanguageCaptions = false;
+            transcriptState.resetPlainDisplay();
         }
     }
 
     if (message.type === "plain_caption" && sessionState.plainLanguageEnabled) {
-        if (!hasPlainLanguageCaptions) {
+        const captionKey = sessionState.plainCaptionKey(message.sentence_id);
+        const update = transcriptState.recordPlain(message, captionKey);
+
+        if (update.firstCaption) {
             plainLanguageCaptions.textContent = "";
-            hasPlainLanguageCaptions = true;
         }
 
         const segment = document.createElement("span");
-        segment.textContent = `${message.text} `;
-        segment.dataset.status = message.status;
+        segment.textContent = `${update.caption.text} `;
+        segment.dataset.status = update.caption.status;
 
-        if (message.status === "fallback") {
+        if (update.caption.status === "fallback") {
             segment.title = "The plain-language rewrite was rejected; " + "this is the verbatim sentence.";
         }
 
         plainLanguageCaptions.append(segment);
-
-        const captionKey = sessionState.plainCaptionKey(message.sentence_id);
-
-        if (message.status === "simplified") {
-            plainTranscriptCaptions.set(
-                captionKey,
-                {
-                    original: message.original,
-                    text: message.text,
-                    status: message.status,
-                    startSample: message.start_sample,
-                    endSample: message.end_sample,
-                }
-            );
-        } else {
-            plainTranscriptCaptions.delete(captionKey);
-        }
     }
 
     if (message.type === "capture" && message.status === "finalized") {
@@ -375,8 +353,8 @@ microphoneButton.addEventListener("click", toggleCapture);
 
 exportButton.addEventListener("click", () => {
     const transcript = buildTranscriptDocument({
-        committedSegments: committedTranscriptSegments,
-        plainCaptions: [...plainTranscriptCaptions.values()],
+        committedSegments: transcriptState.committedSegments,
+        plainCaptions: [...transcriptState.plainCaptions.values()],
     });
 
     const contents = formatTranscriptText(transcript);
@@ -408,12 +386,7 @@ clearDialog.addEventListener("close", () => {
         return;
     }
 
-    clearTranscriptData({
-        committedSegments: committedTranscriptSegments,
-        plainCaptions: plainTranscriptCaptions,
-    });
-    hasCommittedCaptions = false;
-    hasPlainLanguageCaptions = false;
+    transcriptState.clear();
 
     finalizedCaptions.textContent = "Finalized captions will appear here.";
     provisionalCaption.textContent = "Start the microphone to begin.";

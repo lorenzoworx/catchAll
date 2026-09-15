@@ -2,14 +2,6 @@ function sampleToSeconds(sample, sampleRate) {
     return sample / sampleRate;
 }
 
-export function clearTranscriptData({
-    committedSegments,
-    plainCaptions,
-}) {
-    committedSegments.length = 0;
-    plainCaptions.clear();
-}
-
 export function buildTranscriptDocument({
     committedSegments,
     plainCaptions,

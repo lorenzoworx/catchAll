@@ -3,22 +3,9 @@ import test from "node:test";
 
 import {
     buildTranscriptDocument,
-    clearTranscriptData,
     formatTranscriptText,
     makeTranscriptFilename,
 } from "../catchall/static/transcript-export.js";
-
-test("clears committed and plain-language transcript data in place", () => {
-    const committedSegments = [{ text: "Keep the same array." }];
-    const plainCaptions = new Map([
-        ["sentence-1", { text: "Clear this map." }],
-    ]);
-
-    clearTranscriptData({ committedSegments, plainCaptions });
-
-    assert.deepEqual(committedSegments, []);
-    assert.equal(plainCaptions.size, 0);
-});
 
 test("exports only committed verbatim captions", () => {
     const document = buildTranscriptDocument({
