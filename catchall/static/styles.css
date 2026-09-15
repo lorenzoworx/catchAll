@@ -20,6 +20,36 @@ input:focus-visible {
     outline-offset: 3px;
 }
 
+dialog {
+    width: min(32rem, calc(100% - 2rem));
+    padding: 1.5rem;
+    border: 1px solid #657083;
+    border-radius: 8px;
+    color: inherit;
+}
+
+dialog::backdrop {
+    background: rgb(23 32 52 / 55%);
+}
+
+dialog h2 {
+    margin-top: 0;
+}
+
+.dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.danger-button {
+    border-color: #991b1b;
+    background: #991b1b;
+    color: #ffffff;
+}
+
 .site-header{
     display: flex;
     flex-wrap: wrap;

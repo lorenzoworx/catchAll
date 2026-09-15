@@ -20,8 +20,25 @@
                 <button id="export-button" type="button" disabled>
                     Export finalized transcript
                 </button>
+                <button id="clear-button" type="button" aria-haspopup="dialog" disabled>
+                    Clear transcript
+                </button>
                 <p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
+                <p id="transcript-status" role="status" aria-live="polite" aria-atomic="true"></p>
             </header>
+
+            <dialog id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description">
+                <form method="dialog">
+                    <h2 id="clear-dialog-title">Clear this transcript?</h2>
+                    <p id="clear-dialog-description">
+                        This removes finalized verbatim and plain-language captions from this browser session. Export anything you want to keep first.
+                    </p>
+                    <div class="dialog-actions">
+                        <button type="submit" value="cancel" autofocus>Keep transcript</button>
+                        <button class="danger-button" type="submit" value="clear">Clear transcript</button>
+                    </div>
+                </form>
+            </dialog>
 
             <main aria-label="Live captions">
                 <div class="lanes">
@@ -37,7 +54,7 @@
                             <h3><span class="provisional-symbol" aria-hidden="true">◌</span> Provisional captions</h3>
                             <p class="caption-text provisional">
                                 <span class="provisional-symbol" aria-hidden="true">◌</span>
-                                <span id="provisional-caption">Listening for speech...</span>
+                                <span id="provisional-caption">Start the microphone to begin.</span>
                             </p>
                         </div>
                     </section>

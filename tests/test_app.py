@@ -73,6 +73,9 @@ def test_homepage() -> None:
     assert "processed locally" in response.text
     assert 'id="export-button"' in response.text
     assert 'id="export-status"' in response.text
+    assert 'id="clear-button"' in response.text
+    assert 'id="clear-dialog"' in response.text
+    assert 'id="transcript-status"' in response.text
 
 
 def test_stylesheet() -> None:

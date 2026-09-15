@@ -10,6 +10,7 @@ import {
 } from "./connection-lifecycle.js";
 import {
     buildTranscriptDocument,
+    clearTranscriptData,
     formatTranscriptText,
     makeTranscriptFilename,
 } from "./transcript-export.js";
@@ -27,6 +28,9 @@ const plainLanguageStatus = document.querySelector("#plain-language-status");
 const plainLanguageCaptions = document.querySelector("#plain-language-captions");
 const exportButton = document.querySelector("#export-button");
 const exportStatus = document.querySelector("#export-status");
+const clearButton = document.querySelector("#clear-button");
+const clearDialog = document.querySelector("#clear-dialog");
+const transcriptStatus = document.querySelector("#transcript-status");
 
 const committedTranscriptSegments = [];
 const plainTranscriptCaptions = new Map();
@@ -66,6 +70,13 @@ function setReadyMicrophoneState(status = "Microphone ready") {
 
     recordingStatus.textContent = status;
     microphoneButton.disabled = false;
+}
+
+function updateTranscriptActions() {
+    const hasTranscript = committedTranscriptSegments.length > 0;
+
+    exportButton.disabled = !hasTranscript;
+    clearButton.disabled = !hasTranscript || captureSession.busy;
 }
 
 function handleAudioCaptureMessage(event) {
@@ -168,7 +179,8 @@ function handleSocketMessage(event) {
             endSample: message.end_sample,
         });
 
-        exportButton.disabled = false;
+        transcriptStatus.textContent = "";
+        updateTranscriptActions();
     }
 
     if (message.type === "caption" && message.state === "provisional") {
@@ -229,6 +241,7 @@ function handleSocketMessage(event) {
 
     if (message.type === "capture" && message.status === "finalized") {
         setReadyMicrophoneState("Microphone stopped");
+        updateTranscriptActions();
     }
 }
 
@@ -302,6 +315,7 @@ async function startCapture() {
     }
 
     microphoneButton.disabled = true;
+    clearButton.disabled = true;
     captionAlert.textContent = "";
     recordingStatus.textContent = "Requesting microphone permission...";
 
@@ -321,6 +335,7 @@ async function startCapture() {
         recordingStatus.textContent = describeMicrophoneError(error);
     } finally {
         microphoneButton.disabled = !microphoneCanStart();
+        updateTranscriptActions();
     }
 }
 
@@ -340,6 +355,7 @@ async function stopCapture({
     } else {
         if (serverReady) {
             setReadyMicrophoneState();
+            updateTranscriptActions();
         } else {
             recordingStatus.textContent = stoppedStatus;
             microphoneButton.disabled = true;
@@ -380,6 +396,33 @@ exportButton.addEventListener("click", () => {
     URL.revokeObjectURL(url);
 
     exportStatus.textContent = `Exported ${transcript.finalizedSegments.length} finalized segments.`;
+});
+
+clearButton.addEventListener("click", () => {
+    clearDialog.returnValue = "";
+    clearDialog.showModal();
+});
+
+clearDialog.addEventListener("close", () => {
+    if (clearDialog.returnValue !== "clear") {
+        return;
+    }
+
+    clearTranscriptData({
+        committedSegments: committedTranscriptSegments,
+        plainCaptions: plainTranscriptCaptions,
+    });
+    hasCommittedCaptions = false;
+    hasPlainLanguageCaptions = false;
+
+    finalizedCaptions.textContent = "Finalized captions will appear here.";
+    provisionalCaption.textContent = "Start the microphone to begin.";
+    plainLanguageCaptions.textContent = sessionState.plainLanguageEnabled
+        ? "Waiting for a finalized sentence..."
+        : "Plain-language captions are off.";
+    exportStatus.textContent = "";
+    transcriptStatus.textContent = "Transcript cleared.";
+    updateTranscriptActions();
 });
 
 connection = new ReconnectingSocket({
