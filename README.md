@@ -1,5 +1,7 @@
 # CatchAll
 
+[![Verify](https://github.com/lorenzoworx/catchAll/actions/workflows/verify.yml/badge.svg)](https://github.com/lorenzoworx/catchAll/actions/workflows/verify.yml)
+
 CatchAll is a local-first live-caption prototype. It keeps the original transcript visible, clearly separates provisional text from finalized text, and offers an optional plain-language view without replacing the speaker's words.
 
 ## What it does
