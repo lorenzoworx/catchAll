@@ -312,6 +312,16 @@ async def caption_socket(websocket: WebSocket) -> None:
                 )
                 continue
 
+            if not isinstance(message, dict):
+                await send_message(
+                    {
+                        "type": "error",
+                        "code": "invalid_control_message",
+                        "message": "Control message must be a JSON object.",
+                    }
+                )
+                continue
+
             if message.get("type") == "ping":
                 await send_message({"type": "pong"})
             elif message.get("type") == "stats":

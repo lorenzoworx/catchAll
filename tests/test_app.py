@@ -101,6 +101,38 @@ def test_websocket_ping_pong() -> None:
         assert websocket.receive_json() == {"type": "pong"}
 
 
+def test_websocket_rejects_non_object_control_messages_and_stays_open() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+
+        for payload in ("[]", '"ping"', "null", "42"):
+            websocket.send_text(payload)
+
+            assert websocket.receive_json() == {
+                "type": "error",
+                "code": "invalid_control_message",
+                "message": "Control message must be a JSON object.",
+            }
+
+        websocket.send_json({"type": "ping"})
+        assert websocket.receive_json() == {"type": "pong"}
+
+
+def test_websocket_rejects_invalid_json_and_stays_open() -> None:
+    with client.websocket_connect("/ws") as websocket:
+        receive_startup_messages(websocket)
+        websocket.send_text("{")
+
+        assert websocket.receive_json() == {
+            "type": "error",
+            "code": "invalid_json",
+            "message": "Control message is not valid JSON.",
+        }
+
+        websocket.send_json({"type": "ping"})
+        assert websocket.receive_json() == {"type": "pong"}
+
+
 def test_javascript_is_served() -> None:
     response = client.get("/static/app.js")
 
