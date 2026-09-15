@@ -7,24 +7,35 @@
         <link rel="stylesheet" href="/static/styles.css">
     </head>
     <body>
+        <a class="skip-link" href="#captions">Skip to captions</a>
         <div class="page">
             <header class="site-header">
-                <h1>CatchAll</h1>
-                <p role="status" aria-live="polite" id="connection-status">Disconnected</p>
-                <button id="microphone-button" type="button" aria-describedby="recording-status capture-details" disabled>
-                    Start microphone
-                </button>
-                <p id="recording-status" role="status" aria-live="polite" aria-atomic="true">Microphone stopped</p>
-                <output id="capture-details" aria-live="off"></output>
-                <p id="caption-alert" class="session-alert" role="alert"></p>
-                <button id="export-button" type="button" disabled>
-                    Export finalized transcript
-                </button>
-                <button id="clear-button" type="button" aria-haspopup="dialog" disabled>
-                    Clear transcript
-                </button>
-                <p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
-                <p id="transcript-status" role="status" aria-live="polite" aria-atomic="true"></p>
+                <div class="header-top">
+                    <h1>CatchAll</h1>
+                    <p class="connection-badge" role="status" aria-live="polite" aria-atomic="true" id="connection-status">
+                        Disconnected
+                    </p>
+                </div>
+
+                <div class="session-controls" role="group" aria-label="Session controls">
+                    <button class="primary-button" id="microphone-button" type="button" aria-describedby="recording-status capture-details" disabled>
+                        Start microphone
+                    </button>
+                    <button id="export-button" type="button" aria-describedby="export-status" disabled>
+                        Export finalized transcript
+                    </button>
+                    <button id="clear-button" type="button" aria-haspopup="dialog" aria-describedby="transcript-status" disabled>
+                        Clear transcript
+                    </button>
+                </div>
+
+                <div class="session-feedback">
+                    <p id="recording-status" role="status" aria-live="polite" aria-atomic="true">Microphone stopped</p>
+                    <output id="capture-details" aria-live="off"></output>
+                    <p id="caption-alert" class="session-alert" role="alert"></p>
+                    <p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
+                    <p id="transcript-status" role="status" aria-live="polite" aria-atomic="true"></p>
+                </div>
             </header>
 
             <dialog id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description">
@@ -40,7 +51,7 @@
                 </form>
             </dialog>
 
-            <main aria-label="Live captions">
+            <main id="captions" aria-label="Live captions" tabindex="-1">
                 <div class="lanes">
                     <section class="lane" aria-labelledby="verbatim-heading">
                         <h2 id="verbatim-heading">Verbatim Captions</h2>

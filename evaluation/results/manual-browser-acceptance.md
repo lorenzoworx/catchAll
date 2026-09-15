@@ -19,6 +19,9 @@ transcript text were not saved as evaluation artifacts.
 | Plain-language fallback behavior | Pass | The lane emitted three source-preserving `unchanged` results. |
 | Recoverable-error alert | Pass | No capture alert appeared during either session. |
 | Browser runtime | Pass | No browser warnings or errors were recorded. |
+| Mobile layout | Pass | At 390 px wide, the page had no horizontal overflow, all session controls were 358 px wide and 45 px tall, and the caption lanes stacked vertically. |
+| Desktop layout | Pass | At 1280 px wide, the page had no horizontal overflow and both 516 px caption lanes remained side by side. |
+| Skip navigation | Pass | Activating “Skip to captions” moved keyboard focus to the live-caption region. |
 
 ## Observations
 

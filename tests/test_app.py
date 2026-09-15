@@ -76,6 +76,9 @@ def test_homepage() -> None:
     assert 'id="clear-button"' in response.text
     assert 'id="clear-dialog"' in response.text
     assert 'id="transcript-status"' in response.text
+    assert '<a class="skip-link" href="#captions">Skip to captions</a>' in response.text
+    assert '<main id="captions" aria-label="Live captions" tabindex="-1">' in response.text
+    assert 'role="group" aria-label="Session controls"' in response.text
 
 
 def test_stylesheet() -> None:
