@@ -1,54 +1,113 @@
-# Catch All
-Real-time captions with finalized text that stays finalized, plus an optional plain-language view beside the original transcript.
+# CatchAll
 
-## The problem
-The people who depend most on live captions include deaf and hard-of-hearing users, non-native English speakers, and peopls with cognitive disabilities or attention differences. They need to follow a conversation while it is happening. A transcript delivered afterward solves a different problem.
+CatchAll is a local-first live-caption prototype. It keeps the original transcript visible, clearly separates provisional text from finalized text, and offers an optional plain-language view without replacing the speaker's words.
 
-Live captions can be difficult to follow when:
-- Previously displayed text changes unexpectedly
-- Captions arrive too late to follow the conversation
-- An accurate transcript sitt uses languate that is difficult to process quickly
+## What it does
 
-## The idea
-Catch All presents two caption lanew with different responsibilities
+- Captures microphone audio in the browser and prepares mono 16 kHz frames in an audio worklet.
+- Transcribes English speech locally with `faster-whisper`.
+- Shows the recognizer's latest guess as provisional text and moves stable words into an append-only finalized transcript.
+- Finalizes the remaining phrase when the microphone stops or a speech boundary is detected.
+- Optionally rewrites finalized sentences in plainer language, with checks for meaning, negation, names, numbers, and dates.
+- Exports finalized verbatim and accepted plain-language captions as a text file.
+- Reconnects after a local server interruption while preserving the finalized browser transcript and user preference.
 
-### Verbatim lane
-The verbatim lane displays the speech regognizer's closest transcription of what was said. Every word is in one of two states:
-- **Provisional**: The recognizer's current best guess. It appears only at the end of the transcript, is visually distinguished, and may change.
+CatchAll does not persist audio or transcripts. Models and caption processing run on the machine hosting the server.
 
-- **Finalized**: Text that has been accepted into the permanent transcrip. It will not be changed afterward.
+## Why two caption lanes?
 
-Only finalized text enters transcript history, is exported, or is sent for plain-language rewriting.
+Live captions become difficult to follow when earlier text changes unexpectedly or when correct words are still hard to process quickly. CatchAll assigns a different responsibility to each lane:
 
-The initial stability strategy compares consecutive transcription windows. A shared prefis is finalized only when both windows agree on it. This deliberately trades some latency for greater visual stability.
+- **Verbatim captions** are the closest transcription of what was said. Only the trailing provisional phrase may change; finalized words are not edited afterward.
+- **Plain-language captions** are optional and additive. Only finalized sentences are considered for rewriting. When a candidate fails a safety check, CatchAll displays the original sentence instead.
 
-A core evaluation goal is to measure whether this prevents post-finalization retractions without making captions unacceptably slow.
+The automated checks reduce risk, but they cannot guarantee that every rewrite preserves meaning. The verbatim lane remains authoritative.
 
-### Plain-language lane
-The plain language lane is optional, additive, and never authoritative. It appears in a seperately labelled column and only processes finalized text. Users can disable it without disabling verbatim captions.
-Because rewriting can accidentally change meaning, each candidate rewrite is checked before display:
-- Numbers, dates, and names should be preserved
-- Negations should not be added or removed
-- The rewrite must stay semantically close to the original.
+## Local setup
 
-These checks reduce risk but cannot guarantee equivalent meaning. If a rewrite fails a check or cannot be produced, the application displays the original text instead.
+Prerequisites:
 
-The user can therefore choose between two presentations without losing access to the source transcript.
+- Python 3.12 or newer
+- A C++20 compiler and CMake 3.26 or newer
+- Node.js 20 or newer for browser tests and linting
 
-## First milestone
-Build a FastAPI server that:
-- Serves one accessible web page
-- Exposes a health endpoint
-- Can be started and tested locally
+Create the environment and install the application:
 
-## Planned architecture
-Browser audio -> WebSocken -> c++ audio buffer -> Speech recognition -> Caption stability -> Browser display
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e '.[dev,simplification]'
+npm install
+```
 
-## Non-goals for V1
-- Languages other than English
-- Speaker identification or diarization
-- Meeting platform integrations
-- User accounts or stored transcripts
-- Training a custom speech-recognition model
-- Supporting large-scale production traffic
-- Guaranteeing that an automated rewrite preserves meaning
+Start the local server:
+
+```bash
+.venv/bin/uvicorn catchall.app:app --reload
+```
+
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000). The first connection downloads the configured Whisper model. The plain-language entailment model is downloaded only when that feature first processes a sentence.
+
+Microphone capture requires localhost or HTTPS and a browser with `getUserMedia`, `AudioContext`, and audio-worklet support.
+
+## Recognition configuration
+
+The default remains `tiny.en` on CPU with `int8` computation. Override it only when comparing a deliberate configuration:
+
+```bash
+CATCHALL_WHISPER_MODEL=base.en \
+CATCHALL_WHISPER_DEVICE=cpu \
+CATCHALL_WHISPER_COMPUTE_TYPE=int8 \
+.venv/bin/uvicorn catchall.app:app
+```
+
+The current four-clip evaluation favored `tiny.en`: the latest capture-end run measured 0.2622 corpus word error rate, 769.69 ms median commit latency, and 143.11 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md) and [capture-end comparison](evaluation/results/capture-end-comparison.md) for scope and caveats.
+
+## Verification
+
+Run the Python, browser-module, style, and native tests:
+
+```bash
+.venv/bin/python -m pytest -q
+.venv/bin/ruff check .
+npm run test:js
+npm run lint:js
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+## Streaming evaluation
+
+Evaluation clips use matching `.wav` and `.txt` filenames. Private audio is ignored by Git; committed transcripts and corpus notes document the current test set.
+
+With the server running, evaluate the complete browser-to-WebSocket caption path in real time:
+
+```bash
+.venv/bin/python -m evaluation.run_streaming
+```
+
+By default, the runner trims trailing silence and sends the same explicit capture-end signal as the browser. Use `--keep-trailing-silence` only for a deliberate comparison.
+
+## Architecture
+
+```text
+Browser microphone
+    -> audio worklet and resampler
+    -> WebSocket audio frames
+    -> native C++ ring buffer
+    -> speech boundary detection
+    -> faster-whisper recognition
+    -> local-agreement finalization
+    -> verbatim captions
+    -> optional guarded plain-language captions
+```
+
+## Current limits
+
+- English only
+- No speaker identification or diarization
+- No meeting-platform integrations
+- No accounts, cloud sync, or stored transcript history
+- Prototype-scale local use rather than production traffic
+- Automated rewrite checks cannot guarantee equivalent meaning

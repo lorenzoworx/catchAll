@@ -10,6 +10,16 @@ body {
     line-height: 1.6;
 }
 
+button {
+    min-height: 2.75rem;
+}
+
+button:focus-visible,
+input:focus-visible {
+    outline: 3px solid #1d4ed8;
+    outline-offset: 3px;
+}
+
 .site-header{
     display: flex;
     flex-wrap: wrap;

@@ -1,5 +1,9 @@
 import { buildAudioFrame } from "./audio-protocol.js";
 import {
+    describeMicrophoneError,
+    detectAudioCaptureSupport,
+} from "./audio-capture.js";
+import {
     CaptionSessionState,
     ReconnectingSocket,
 } from "./connection-lifecycle.js";
@@ -25,6 +29,7 @@ const exportStatus = document.querySelector("#export-status");
 const committedTranscriptSegments = [];
 const plainTranscriptCaptions = new Map();
 const sessionState = new CaptionSessionState();
+const audioSupport = detectAudioCaptureSupport(window);
 
 let audioContext = null;
 let mediaStream = null;
@@ -37,6 +42,26 @@ let hasPlainLanguageCaptions = false;
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
+}
+
+function microphoneCanStart() {
+    return serverReady && audioSupport.supported;
+}
+
+function setReadyMicrophoneState(status = "Microphone ready") {
+    if (!serverReady) {
+        microphoneButton.disabled = true;
+        return;
+    }
+
+    if (!audioSupport.supported) {
+        recordingStatus.textContent = audioSupport.reason;
+        microphoneButton.disabled = true;
+        return;
+    }
+
+    recordingStatus.textContent = status;
+    microphoneButton.disabled = false;
 }
 
 function makeWebSocketUrl() {
@@ -62,8 +87,7 @@ function handleSocketMessage(event) {
         serverReady = true;
         connection.markStable();
         setConnectionStatus("Connected");
-        recordingStatus.textContent = "Microphone ready";
-        microphoneButton.disabled = false;
+        setReadyMicrophoneState();
 
         const restoreMessage = sessionState.recognizerReady();
 
@@ -161,8 +185,7 @@ function handleSocketMessage(event) {
     }
 
     if (message.type === "capture" && message.status === "finalized") {
-        recordingStatus.textContent = "Microphone stopped";
-        microphoneButton.disabled = false;
+        setReadyMicrophoneState("Microphone stopped");
     }
 }
 
@@ -229,12 +252,18 @@ async function startCapture() {
         return;
     }
 
+    if (!audioSupport.supported) {
+        recordingStatus.textContent = audioSupport.reason;
+        microphoneButton.disabled = true;
+        return;
+    }
+
     provisionalCaption.textContent = "Listening for speech";
     microphoneButton.disabled = true;
     recordingStatus.textContent = "Requesting microphone permission...";
 
     try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
+        mediaStream = await window.navigator.mediaDevices.getUserMedia({
             audio: {
                 channelCount: 1,
                 echoCancellation: true,
@@ -243,7 +272,7 @@ async function startCapture() {
             video: false,
         });
 
-        audioContext = new AudioContext({
+        audioContext = new audioSupport.AudioContextClass({
             latencyHint: "interactive",
         });
 
@@ -253,7 +282,7 @@ async function startCapture() {
 
         mediaSource = audioContext.createMediaStreamSource(mediaStream);
 
-        captureNode = new AudioWorkletNode(
+        captureNode = new audioSupport.AudioWorkletNodeClass(
             audioContext,
             "capture",
             {
@@ -299,9 +328,9 @@ async function startCapture() {
     } catch (error) {
         console.error("Could not start microphone capture:", error);
         await stopCapture({ finalize: false });
-        recordingStatus.textContent = "Microphone unavailable";
+        recordingStatus.textContent = describeMicrophoneError(error);
     } finally {
-        microphoneButton.disabled = !serverReady;
+        microphoneButton.disabled = !microphoneCanStart();
     }
 }
 
@@ -333,8 +362,12 @@ async function stopCapture({
         recordingStatus.textContent = "Finalizing last phrase...";
         connection.send(JSON.stringify({ type: "capture_end" }));
     } else {
-        recordingStatus.textContent = serverReady ? "Microphone ready" : stoppedStatus;
-        microphoneButton.disabled = !serverReady;
+        if (serverReady) {
+            setReadyMicrophoneState();
+        } else {
+            recordingStatus.textContent = stoppedStatus;
+            microphoneButton.disabled = true;
+        }
     }
 }
 
@@ -380,4 +413,7 @@ connection = new ReconnectingSocket({
 });
 connection.start();
 
-window.addEventListener("pagehide", () => connection.stop(), { once: true });
+window.addEventListener("pagehide", () => {
+    void stopCapture({ finalize: false });
+    connection.stop();
+}, { once: true });

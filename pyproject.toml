@@ -20,12 +20,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "httpx2",
+    "httpx>=0.27",
     "pytest>=8",
     "ruff>=0.6",
 ]
 simplification = [
-    "sentence-transformers >=3.0"
+    "sentence-transformers>=3.0",
 ]
 
 [tool.pytest.ini_options]

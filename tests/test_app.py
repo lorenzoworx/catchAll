@@ -111,6 +111,14 @@ def test_connection_lifecycle_javascript_is_served() -> None:
     assert "ReconnectingSocket" in response.text
     assert "CaptionSessionState" in response.text
 
+def test_audio_capture_javascript_is_served() -> None:
+    response = client.get("/static/audio-capture.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "detectAudioCaptureSupport" in response.text
+    assert "describeMicrophoneError" in response.text
+
 def test_websocket_consumes_binary_audio() -> None:
     samples = [0] * 320
     header = AUDIO_HEADER.pack(

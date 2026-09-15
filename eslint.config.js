@@ -12,6 +12,7 @@ export default [
     {
         files: [
             "catchall/static/app.js",
+            "catchall/static/audio-capture.js",
             "catchall/static/connection-lifecycle.js",
         ],
         languageOptions: {

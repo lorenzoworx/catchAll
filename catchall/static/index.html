@@ -11,15 +11,15 @@
             <header class="site-header">
                 <h1>CatchAll</h1>
                 <p role="status" aria-live="polite" id="connection-status">Disconnected</p>
-                <button id="microphone-button" type="button" disabled>
+                <button id="microphone-button" type="button" aria-describedby="recording-status capture-details" disabled>
                     Start microphone
                 </button>
-                <p id="recording-status" role="status" aria-live="polite">Microphone stopped</p>
+                <p id="recording-status" role="status" aria-live="polite" aria-atomic="true">Microphone stopped</p>
                 <output id="capture-details" aria-live="off"></output>
                 <button id="export-button" type="button" disabled>
                     Export finalized transcript
                 </button>
-                <p id="export-status" role="status"aria-live="polite"></p>
+                <p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
             </header>
 
             <main aria-label="Live captions">
@@ -48,11 +48,11 @@
                         </h2>
 
                         <div class="plain-language-controls">
-                            <input id="plain-language-toggle" type="checkbox" disabled>
+                            <input id="plain-language-toggle" type="checkbox" aria-describedby="plain-language-status" disabled>
                             <label for="plain-language-toggle">
                                 Show plain-language captions
                             </label>
-                            <p id="plain-language-status" role="status" aria-live="polite">
+                            <p id="plain-language-status" role="status" aria-live="polite" aria-atomic="true">
                                 Off. Connect to enable.
                             </p>
                         </div>
