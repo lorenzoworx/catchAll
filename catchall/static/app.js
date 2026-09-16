@@ -10,6 +10,14 @@ import {
     ReconnectingSocket,
 } from "./connection-lifecycle.js";
 import {
+    describeConnectionView,
+    describeServerView,
+} from "./browser-view-state.js";
+import {
+    INVALID_SERVER_MESSAGE_NOTICE,
+    parseServerMessage,
+} from "./server-message.js";
+import {
     buildTranscriptDocument,
     formatTranscriptText,
     makeTranscriptFilename,
@@ -47,6 +55,46 @@ const captureSession = new AudioCaptureSession({
 
 function setConnectionStatus(status) {
     connectionStatus.textContent = status;
+}
+
+function applyViewState(view) {
+    if (view === null) {
+        return;
+    }
+
+    if ("serverReady" in view) {
+        serverReady = view.serverReady;
+    }
+
+    if (view.connectionStatus !== undefined) {
+        setConnectionStatus(view.connectionStatus);
+    }
+
+    if (view.recordingStatus !== undefined) {
+        recordingStatus.textContent = view.recordingStatus;
+    }
+
+    if (view.alert !== undefined) {
+        captionAlert.textContent = view.alert;
+    } else if (view.clearAlert) {
+        captionAlert.textContent = "";
+    }
+
+    if (view.provisionalCaption !== undefined) {
+        provisionalCaption.textContent = view.provisionalCaption;
+    }
+
+    if (view.plainLanguageStatus !== undefined) {
+        plainLanguageStatus.textContent = view.plainLanguageStatus;
+    }
+
+    if (view.microphoneDisabled !== undefined) {
+        microphoneButton.disabled = view.microphoneDisabled;
+    }
+
+    if (view.plainLanguageDisabled !== undefined) {
+        plainLanguageToggle.disabled = view.plainLanguageDisabled;
+    }
 }
 
 function microphoneCanStart() {
@@ -111,22 +159,21 @@ function makeWebSocketUrl() {
 }
 
 function handleSocketMessage(event) {
-    const message = JSON.parse(event.data);
+    let message;
 
-    if (message.type === "connection" && message.status === "connected") {
-        setConnectionStatus("Connected. Preparing speech recognition...");
+    try {
+        message = parseServerMessage(event.data);
+    } catch (error) {
+        console.warn("Ignored invalid server message:", error);
+        captionAlert.textContent = INVALID_SERVER_MESSAGE_NOTICE;
+        return;
     }
 
-    if (message.type === "recognizer" && message.status === "loading") {
-        recordingStatus.textContent = "Loading speech recognition";
-        microphoneButton.disabled = true;
-    }
+    const view = describeServerView(message);
+    applyViewState(view);
 
-    if (message.type === "recognizer" && message.status === "ready") {
-        serverReady = true;
-        captionAlert.textContent = "";
+    if (view?.kind === "recognizer-ready") {
         connection.markStable();
-        setConnectionStatus("Connected");
         setReadyMicrophoneState();
 
         const restoreMessage = sessionState.recognizerReady();
@@ -140,24 +187,6 @@ function handleSocketMessage(event) {
             plainLanguageStatus.textContent = "Restoring plain-language captions...";
             connection.send(JSON.stringify(restoreMessage));
         }
-    }
-
-    if (message.type === "error" && message.code === "recognizer_unavailable") {
-        serverReady = false;
-        recordingStatus.textContent = "Speech recognition unavailable";
-        captionAlert.textContent = "Speech recognition could not be started.";
-        microphoneButton.disabled = true;
-        plainLanguageToggle.disabled = true;
-    }
-
-    if (message.type === "error" && message.code === "recognition_failed") {
-        captionAlert.textContent =
-            "Some speech could not be captioned. Listening continues.";
-    }
-
-    if (message.type === "error" && message.code === "audio_buffer_full") {
-        captionAlert.textContent =
-            "Audio processing fell behind, so some audio was skipped.";
     }
 
     if (message.type === "caption" && message.state === "committed") {
@@ -217,50 +246,25 @@ function handleSocketMessage(event) {
         plainLanguageCaptions.append(segment);
     }
 
-    if (message.type === "capture" && message.status === "finalized") {
+    if (view?.kind === "capture-finalized") {
         setReadyMicrophoneState("Microphone stopped");
         updateTranscriptActions();
     }
 }
 
-function handleConnectionState({ state, delay = 0 }) {
-    if (state === "connecting") {
-        setConnectionStatus("Connecting...");
-        return;
-    }
+function handleConnectionState(connectionState) {
+    const view = describeConnectionView(connectionState);
+    applyViewState(view);
 
-    if (state === "reconnecting") {
-        setConnectionStatus("Reconnecting...");
-        return;
-    }
-
-    if (state === "open") {
-        setConnectionStatus("Connected. Waiting for server...");
-        return;
-    }
-
-    if (state === "error") {
-        setConnectionStatus("Connection error");
-        return;
-    }
-
-    if (state === "waiting") {
-        serverReady = false;
+    if (view?.kind === "connection-waiting") {
         sessionState.disconnect();
-        setConnectionStatus(`Reconnecting in ${delay / 1000} seconds...`);
-        microphoneButton.disabled = true;
         plainLanguageToggle.checked = sessionState.plainLanguageRequested;
-        plainLanguageToggle.disabled = true;
-        plainLanguageStatus.textContent = "Unavailable while reconnecting.";
-        provisionalCaption.textContent = "Connection lost; provisional caption discarded.";
 
         if (captureSession.busy) {
             void stopCapture({
                 finalize: false,
                 stoppedStatus: "Microphone stopped after connection loss.",
             });
-        } else {
-            recordingStatus.textContent = "Microphone unavailable while reconnecting.";
         }
     }
 }

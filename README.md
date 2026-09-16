@@ -4,6 +4,15 @@
 
 CatchAll is a local-first live-caption prototype. It keeps the original transcript visible, clearly separates provisional text from finalized text, and offers an optional plain-language view without replacing the speaker's words.
 
+## Prototype status
+
+Version 0.1.0 completes the current local-first prototype milestone. The final
+acceptance run retained the established 0.2622 corpus word error rate with no
+dropped samples, rejected recognition windows, duplicate boundaries, or
+post-commit retractions. See the [final acceptance report](evaluation/results/final-acceptance.md)
+and [changelog](CHANGELOG.md) for the verified scope. The current limits below
+still apply; this is not a production service release.
+
 ## What it does
 
 - Captures microphone audio in the browser and prepares mono 16 kHz frames in an audio worklet.
@@ -63,7 +72,7 @@ CATCHALL_WHISPER_COMPUTE_TYPE=int8 \
 .venv/bin/uvicorn catchall.app:app
 ```
 
-The current four-clip evaluation favored `tiny.en`: the latest capture-end run measured 0.2622 corpus word error rate, 769.69 ms median commit latency, and 143.11 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md), [capture-end comparison](evaluation/results/capture-end-comparison.md), [manual browser acceptance](evaluation/results/manual-browser-acceptance.md), and [noise-robustness experiment](evaluation/results/noise-robustness.md) for scope and caveats.
+The current four-clip evaluation favored `tiny.en`: the latest final acceptance run measured 0.2622 corpus word error rate, 844.55 ms median commit latency, and 203.02 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md), [capture-end comparison](evaluation/results/capture-end-comparison.md), [manual browser acceptance](evaluation/results/manual-browser-acceptance.md), [noise-robustness experiment](evaluation/results/noise-robustness.md), and [final acceptance report](evaluation/results/final-acceptance.md) for scope and caveats.
 
 ## Verification
 

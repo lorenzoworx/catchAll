@@ -79,6 +79,9 @@ def test_homepage() -> None:
     assert '<a class="skip-link" href="#captions">Skip to captions</a>' in response.text
     assert '<main id="captions" aria-label="Live captions" tabindex="-1">' in response.text
     assert 'role="group" aria-label="Session controls"' in response.text
+    assert 'name="description"' in response.text
+    assert 'name="theme-color" content="#1d4ed8"' in response.text
+    assert 'rel="icon" href="/static/favicon.svg"' in response.text
 
 
 def test_stylesheet() -> None:
@@ -86,6 +89,14 @@ def test_stylesheet() -> None:
 
     assert response.status_code == 200
     assert "text/css" in response.headers["content-type"]
+
+
+def test_favicon() -> None:
+    response = client.get("/static/favicon.svg")
+
+    assert response.status_code == 200
+    assert "image/svg+xml" in response.headers["content-type"]
+    assert response.text.startswith("<svg")
 
 
 def test_websocket_connects() -> None:
@@ -229,6 +240,22 @@ def test_caption_transcript_state_javascript_is_served() -> None:
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
     assert "CaptionTranscriptState" in response.text
+
+
+def test_browser_view_state_javascript_is_served() -> None:
+    response = client.get("/static/browser-view-state.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "describeServerView" in response.text
+
+
+def test_server_message_javascript_is_served() -> None:
+    response = client.get("/static/server-message.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "parseServerMessage" in response.text
 
 
 def test_websocket_emits_provisional_caption() -> None:
