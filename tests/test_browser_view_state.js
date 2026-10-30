@@ -103,3 +103,20 @@ test("ignores messages and connection states without a view transition", () => {
     assert.equal(describeServerView({ type: "future_event" }), null);
     assert.equal(describeConnectionView({ state: "stopped" }), null);
 });
+
+test("describes a busy server and waits for a free session", () => {
+    assert.deepEqual(
+        describeServerView({
+            type: "error",
+            code: "server_busy",
+            message: "All caption sessions are in use. Try again shortly.",
+        }),
+        {
+            kind: "server-busy",
+            serverReady: false,
+            connectionStatus: "Server busy",
+            alert: "The caption server is busy. CatchAll will connect automatically when a session frees up.",
+            microphoneDisabled: true,
+        },
+    );
+});
