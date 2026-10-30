@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from catchall import _core
 from catchall.audio_consumer import AudioConsumer
 from catchall.audio_protocol import AudioFrameError, decode_audio_frame
+from catchall.connection_guard import SessionLimiter, origin_allowed
 from catchall.local_agreement import LocalAgreement
 from catchall.nli import BidirectionalNliScorer
 from catchall.plain_language import RuleBasedSimplifier
@@ -22,7 +23,7 @@ from catchall.rewrite_guard import (
     FaithfulnessGuard,
 )
 from catchall.sentence_assembler import CommittedSentence, SentenceAssembler
-from catchall.settings import RecognitionSettings
+from catchall.settings import ConnectionSettings, RecognitionSettings
 from catchall.simplification import SimplificationPipeline, SimplificationResult
 from catchall.speech_gate import EnergySpeechGate
 from catchall.whisper_recognizer import WhisperRecognizer
@@ -55,6 +56,9 @@ def create_whisper_recognizer() -> WhisperRecognizer:
 
 app = FastAPI(title="CatchAll")
 app.state.recognizer_provider = RecognizerProvider(create_whisper_recognizer)
+_CONNECTION_SETTINGS = ConnectionSettings.from_environment()
+app.state.session_limiter = SessionLimiter(_CONNECTION_SETTINGS.max_sessions)
+app.state.allowed_origins = _CONNECTION_SETTINGS.allowed_origins
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -68,8 +72,45 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+# Close code 1008 (policy violation) before accepting sends HTTP 403.
+ORIGIN_REJECTED_CLOSE_CODE = 1008
+# Close code 1013 means "try again later"; the browser retries on its own.
+SERVER_BUSY_CLOSE_CODE = 1013
+
+
 @app.websocket("/ws")
 async def caption_socket(websocket: WebSocket) -> None:
+    state = websocket.app.state
+
+    if not origin_allowed(
+        websocket.headers.get("origin"),
+        (websocket.headers.get("host"), websocket.headers.get("x-forwarded-host")),
+        state.allowed_origins,
+    ):
+        await websocket.close(code=ORIGIN_REJECTED_CLOSE_CODE)
+        return
+
+    limiter: SessionLimiter = state.session_limiter
+
+    if not limiter.try_acquire():
+        await websocket.accept()
+        await websocket.send_json(
+            {
+                "type": "error",
+                "code": "server_busy",
+                "message": "All caption sessions are in use. Try again shortly.",
+            }
+        )
+        await websocket.close(code=SERVER_BUSY_CLOSE_CODE)
+        return
+
+    try:
+        await _run_caption_session(websocket)
+    finally:
+        limiter.release()
+
+
+async def _run_caption_session(websocket: WebSocket) -> None:
     ring = _core.AudioRing(RING_CAPACITY)
 
     agreement = LocalAgreement()

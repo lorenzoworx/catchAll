@@ -180,7 +180,7 @@ function handleSocketMessage(event) {
 
         if (restoreMessage === null) {
             plainLanguageToggle.disabled = false;
-            plainLanguageStatus.textContent = "Off. Plain-language processing is local.";
+            plainLanguageStatus.textContent = "Off. Plain-language processing runs on the CatchAll server.";
         } else {
             plainLanguageToggle.checked = true;
             plainLanguageToggle.disabled = true;
@@ -215,13 +215,13 @@ function handleSocketMessage(event) {
         plainLanguageToggle.disabled = false;
 
         if (sessionState.plainLanguageEnabled) {
-            plainLanguageStatus.textContent = "On. Finalized sentences are rewritten locally.";
+            plainLanguageStatus.textContent = "On. Finalized sentences are rewritten on the CatchAll server.";
 
             if (!transcriptState.hasPlainCaptions) {
                 plainLanguageCaptions.textContent = "Waiting for a finalized sentence...";
             }
         } else {
-            plainLanguageStatus.textContent = "Off. Plain-language processing is local.";
+            plainLanguageStatus.textContent = "Off. Plain-language processing runs on the CatchAll server.";
             plainLanguageCaptions.textContent = "Plain-language captions are off.";
             transcriptState.resetPlainDisplay();
         }

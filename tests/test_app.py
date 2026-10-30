@@ -2,10 +2,13 @@ import struct
 from collections.abc import Sequence
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from catchall.app import app
 from catchall.audio_protocol import AUDIO_FRAME_TYPE, AUDIO_HEADER
+from catchall.connection_guard import SessionLimiter
 from catchall.recognition import RecognitionHypothesis, TimedWord
 from catchall.recognizer_provider import RecognizerProvider
 
@@ -70,7 +73,7 @@ def test_homepage() -> None:
     assert 'id="plain-language-toggle"' in response.text
     assert 'id="plain-language-status"' in response.text
     assert 'id="plain-language-captions"' in response.text
-    assert "processed locally" in response.text
+    assert "sent to the CatchAll server" in response.text
     assert 'id="export-button"' in response.text
     assert 'id="export-status"' in response.text
     assert 'id="clear-button"' in response.text
@@ -528,3 +531,74 @@ def test_transcript_export_javascript_is_served() -> None:
     assert response.status_code == 200
     assert "buildTranscriptDocument" in response.text
     assert "formatTranscriptText" in response.text
+
+
+def test_websocket_rejects_pages_on_other_sites() -> None:
+    with (
+        pytest.raises(WebSocketDisconnect) as rejected,
+        client.websocket_connect("/ws", headers={"origin": "https://elsewhere.example"}),
+    ):
+        pass
+
+    assert rejected.value.code == 1008
+
+
+def test_websocket_accepts_same_site_and_proxied_origins() -> None:
+    with client.websocket_connect("/ws", headers={"origin": "http://testserver"}) as websocket:
+        receive_startup_messages(websocket)
+
+    proxied_headers = {
+        "origin": "https://captions.example",
+        "x-forwarded-host": "captions.example",
+    }
+    with client.websocket_connect("/ws", headers=proxied_headers) as websocket:
+        receive_startup_messages(websocket)
+
+
+def test_websocket_uses_configured_origin_allow_list() -> None:
+    original = app.state.allowed_origins
+    app.state.allowed_origins = ("https://portfolio.example",)
+
+    try:
+        with client.websocket_connect(
+            "/ws", headers={"origin": "https://portfolio.example"}
+        ) as websocket:
+            receive_startup_messages(websocket)
+
+        with (
+            pytest.raises(WebSocketDisconnect) as rejected,
+            client.websocket_connect("/ws", headers={"origin": "http://testserver"}),
+        ):
+            pass
+
+        assert rejected.value.code == 1008
+    finally:
+        app.state.allowed_origins = original
+
+
+def test_websocket_turns_away_sessions_beyond_capacity_and_frees_slots() -> None:
+    original = app.state.session_limiter
+    app.state.session_limiter = SessionLimiter(1)
+
+    try:
+        with client.websocket_connect("/ws") as first:
+            receive_startup_messages(first)
+
+            with client.websocket_connect("/ws") as second:
+                assert second.receive_json() == {
+                    "type": "error",
+                    "code": "server_busy",
+                    "message": "All caption sessions are in use. Try again shortly.",
+                }
+
+                with pytest.raises(WebSocketDisconnect) as closed:
+                    second.receive_json()
+
+                assert closed.value.code == 1013
+
+        assert app.state.session_limiter.active == 0
+
+        with client.websocket_connect("/ws") as third:
+            receive_startup_messages(third)
+    finally:
+        app.state.session_limiter = original

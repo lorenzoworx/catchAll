@@ -74,6 +74,21 @@ CATCHALL_WHISPER_COMPUTE_TYPE=int8 \
 
 The current four-clip evaluation favored `tiny.en`: the latest final acceptance run measured 0.2622 corpus word error rate, 844.55 ms median commit latency, and 203.02 ms median capture-finalization latency, with no post-commit retractions. See [the model comparison](evaluation/results/model-comparison.md), [capture-end comparison](evaluation/results/capture-end-comparison.md), [manual browser acceptance](evaluation/results/manual-browser-acceptance.md), [noise-robustness experiment](evaluation/results/noise-robustness.md), and [final acceptance report](evaluation/results/final-acceptance.md) for scope and caveats.
 
+## Hosting a public demo
+
+Each caption session runs speech recognition on the server's CPU, so CatchAll limits who can open sessions and how many run at once:
+
+- **Simultaneous sessions:** at most two by default. Set `CATCHALL_MAX_SESSIONS` to change it. When every session is in use, new visitors see that the server is busy, and their browser connects automatically once a session frees up.
+- **Allowed origins:** the caption socket only accepts pages served from the same host, using the `Host` header or a reverse proxy's `X-Forwarded-Host`. A page on another site cannot open sessions from a visitor's browser. Behind a proxy that sets neither header, list the public origins explicitly:
+
+```bash
+CATCHALL_MAX_SESSIONS=2 \
+CATCHALL_ALLOWED_ORIGINS=https://boywithabot.com \
+.venv/bin/uvicorn catchall.app:app
+```
+
+On a hosted demo, visitors' microphone audio is sent to that server for captioning. It is not stored, and no third-party speech service is used.
+
 ## Verification
 
 Run the Python, browser-module, style, and native tests:

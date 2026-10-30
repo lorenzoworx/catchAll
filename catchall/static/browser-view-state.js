@@ -33,6 +33,16 @@ export function describeServerView(message) {
         };
     }
 
+    if (message.type === "error" && message.code === "server_busy") {
+        return {
+            kind: "server-busy",
+            serverReady: false,
+            connectionStatus: "Server busy",
+            alert: "The caption server is busy. CatchAll will connect automatically when a session frees up.",
+            microphoneDisabled: true,
+        };
+    }
+
     if (message.type === "error" && message.code === "recognition_failed") {
         return {
             alert: "Some speech could not be captioned. Listening continues.",
