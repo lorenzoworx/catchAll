@@ -58,7 +58,7 @@ def test_homepage() -> None:
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert '<html lang="en">' in response.text
-    assert "<h1>CatchAll</h1>" in response.text
+    assert "<h1>Words you can follow.</h1>" in response.text
     assert 'role="status"' in response.text
     assert 'aria-live="polite"' in response.text
     assert "verbatim captions" in response.text.lower()
@@ -70,10 +70,12 @@ def test_homepage() -> None:
     assert 'role="alert"' in response.text
     assert 'id="finalized-captions"' in response.text
     assert 'id="provisional-caption"' in response.text
+    assert 'role="meter" aria-label="Microphone input level"' in response.text
+    assert 'id="retry-card"' in response.text
     assert 'id="plain-language-toggle"' in response.text
     assert 'id="plain-language-status"' in response.text
     assert 'id="plain-language-captions"' in response.text
-    assert "sent to the CatchAll server" in response.text
+    assert "Microphone audio is sent to the machine hosting CatchAll" in response.text
     assert 'id="export-button"' in response.text
     assert 'id="export-status"' in response.text
     assert 'id="clear-button"' in response.text
@@ -83,7 +85,7 @@ def test_homepage() -> None:
     assert '<main id="captions" aria-label="Live captions" tabindex="-1">' in response.text
     assert 'role="group" aria-label="Session controls"' in response.text
     assert 'name="description"' in response.text
-    assert 'name="theme-color" content="#1d4ed8"' in response.text
+    assert 'name="theme-color" content="#0f7173"' in response.text
     assert 'rel="icon" href="/static/favicon.svg"' in response.text
 
 
