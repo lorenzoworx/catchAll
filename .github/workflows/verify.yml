@@ -3,6 +3,7 @@ name: Verify
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -60,3 +61,48 @@ jobs:
 
       - name: Run native tests
         run: ctest --test-dir build/native --build-config Release --output-on-failure
+
+  production:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Build production image
+        run: docker build --build-arg CATCHALL_ASSET_VERSION=ci --tag catchall:smoke .
+      - name: Verify production image
+        run: |
+          docker run --detach --name catchall-smoke --publish 8000:8000 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001 --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges catchall:smoke
+          trap 'docker rm --force catchall-smoke' EXIT
+          for _ in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:8000/ | grep -F '.ci.js' > /dev/null
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: production
+    runs-on: [self-hosted, macOS, ARM64, catchall-production]
+    timeout-minutes: 45
+    concurrency:
+      group: catchall-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}/projects/catchall/
+    steps:
+      - name: Check out the verified commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Deploy and verify the exact commit
+        env:
+          DEPLOY_STACK_DIR: ${{ vars.DEPLOY_STACK_DIR }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          chmod -R a+rX "$GITHUB_WORKSPACE"
+          lockf -t 3600 -k /tmp/boywithabot-production-deploy.lock bash scripts/deploy-production.sh
