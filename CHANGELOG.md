@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Version the production image contract in the repository.
+- Deploy verified `main` commits on a dedicated self-hosted runner.
+- Smoke-test the candidate, verify the public route, and automatically restore
+  the previous image if promotion fails.
+
 ## 0.1.0 - 2026-09-15
 
 First complete local-first prototype milestone.
