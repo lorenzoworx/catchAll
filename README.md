@@ -4,6 +4,10 @@
 
 CatchAll is a local-first live-caption prototype. It keeps the original transcript visible, clearly separates provisional text from finalized text, and offers an optional plain-language view without replacing the speaker's words.
 
+## Caption presentation
+
+The interface uses Atkinson Hyperlegible, pencil-grey provisional text, and append-only inked phrases. Each new committed phrase receives one 250 ms ink-in; reduced motion skips it. The microphone dots reflect RMS input amplitude, not recognition confidence. A busy server shows the reconnect timer's actual next retry and preserves finalized text. Plain-language captions remain optional and additive.
+
 ## Prototype status
 
 Version 0.1.0 completes the current local-first prototype milestone. The final
