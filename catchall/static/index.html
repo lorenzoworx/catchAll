@@ -1,109 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="Local-first live captions with stable verbatim text and an optional plain-language view.">
-        <meta name="theme-color" content="#1d4ed8">
-        <title>CatchAll</title>
-        <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-        <link rel="stylesheet" href="/static/styles.css">
-    </head>
-    <body>
-        <a class="skip-link" href="#captions">Skip to captions</a>
-        <div class="page">
-            <header class="site-header">
-                <div class="header-top">
-                    <h1>CatchAll</h1>
-                    <p class="connection-badge" role="status" aria-live="polite" aria-atomic="true" id="connection-status">
-                        Disconnected
-                    </p>
-                </div>
-
-                <div class="session-controls" role="group" aria-label="Session controls">
-                    <button class="primary-button" id="microphone-button" type="button" aria-describedby="recording-status capture-details" disabled>
-                        Start microphone
-                    </button>
-                    <button id="export-button" type="button" aria-describedby="export-status" disabled>
-                        Export finalized transcript
-                    </button>
-                    <button id="clear-button" type="button" aria-haspopup="dialog" aria-describedby="transcript-status" disabled>
-                        Clear transcript
-                    </button>
-                </div>
-
-                <div class="session-feedback">
-                    <p id="recording-status" role="status" aria-live="polite" aria-atomic="true">Microphone stopped</p>
-                    <output id="capture-details" aria-live="off"></output>
-                    <p id="caption-alert" class="session-alert" role="alert"></p>
-                    <p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
-                    <p id="transcript-status" role="status" aria-live="polite" aria-atomic="true"></p>
-                </div>
-            </header>
-
-            <dialog id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description">
-                <form method="dialog">
-                    <h2 id="clear-dialog-title">Clear this transcript?</h2>
-                    <p id="clear-dialog-description">
-                        This removes finalized verbatim and plain-language captions from this browser session. Export anything you want to keep first.
-                    </p>
-                    <div class="dialog-actions">
-                        <button type="submit" value="cancel" autofocus>Keep transcript</button>
-                        <button class="danger-button" type="submit" value="clear">Clear transcript</button>
-                    </div>
-                </form>
-            </dialog>
-
-            <main id="captions" aria-label="Live captions" tabindex="-1">
-                <div class="lanes">
-                    <section class="lane" aria-labelledby="verbatim-heading">
-                        <h2 id="verbatim-heading">Verbatim Captions</h2>
-
-                        <div class="caption-region">
-                            <h3>Finalized captions</h3>
-                            <p id="finalized-captions" class="caption-text" role="log" aria-live="polite" aria-relevant="additions">Finalized captions will appear here.</p>
-                        </div>
-
-                        <div class="caption-region">
-                            <h3><span class="provisional-symbol" aria-hidden="true">◌</span> Provisional captions</h3>
-                            <p class="caption-text provisional">
-                                <span class="provisional-symbol" aria-hidden="true">◌</span>
-                                <span id="provisional-caption">Start the microphone to begin.</span>
-                            </p>
-                        </div>
-                    </section>
-
-                    <section class="lane" aria-labelledby="plain-heading">
-                        <h2 id="plain-heading">
-                            Plain-Language Captions
-                            <span class="optional-tag">(optional)</span>
-                        </h2>
-
-                        <div class="plain-language-controls">
-                            <input id="plain-language-toggle" type="checkbox" aria-describedby="plain-language-status" disabled>
-                            <label for="plain-language-toggle">
-                                Show plain-language captions
-                            </label>
-                            <p id="plain-language-status" role="status" aria-live="polite" aria-atomic="true">
-                                Off. Connect to enable.
-                            </p>
-                        </div>
-
-                        <div class="caption-region">
-                            <h3>Simplified Captions</h3>
-                            <p id="plain-language-captions" class="caption-text" role="log" aria-live="polite" aria-relevant="additions">
-                                Plain-language captions are off
-                            </p>
-                        </div>
-                    </section>
-                </div>
-            </main>
-
-            <footer class="site-footer">
-                <p>CatchAll does not store audio or transcripts. Your microphone audio is sent to the CatchAll server for captioning, and verbatim and plain-language captions are produced there, without any third-party speech service.</p>
-            </footer>
-                
-        </div>
-        <script type="module" src="/static/app.js"></script>
-    </body>
-</html>
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Live captions with finalized words that stay put and an optional plain-language companion."><meta name="theme-color" content="#0f7173"><title>CatchAll</title><link rel="icon" href="/static/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/styles.css"></head>
+<body><a class="skip-link" href="#captions">Skip to captions</a><div class="page">
+<header class="site-header"><div class="header-top"><a class="brand" href="#captions"><span class="caption-mark" aria-hidden="true"></span>CatchAll</a><p class="connection-badge" role="status" aria-live="polite" aria-atomic="true" id="connection-status">Disconnected</p></div>
+<div class="page-intro"><h1>Words you can follow.</h1><p>The pencil draft may change. The ink stays.</p></div>
+<div class="session-controls" role="group" aria-label="Session controls"><button class="primary-button" id="microphone-button" type="button" aria-describedby="recording-status capture-details" disabled>Start microphone</button><div class="input-feedback"><div id="input-level" class="input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p id="recording-status" role="status" aria-live="polite" aria-atomic="true">Microphone stopped</p></div><button id="export-button" type="button" aria-describedby="export-status" disabled>Export finalized transcript</button><button id="clear-button" type="button" aria-haspopup="dialog" aria-describedby="transcript-status" disabled>Clear transcript</button></div>
+<div class="session-feedback"><output id="capture-details" aria-live="off"></output><p id="caption-alert" class="session-alert" role="alert"></p><p id="export-status" role="status" aria-live="polite" aria-atomic="true"></p><p id="transcript-status" role="status" aria-live="polite" aria-atomic="true"></p></div>
+<section id="retry-card" class="retry-card" aria-labelledby="retry-title" hidden><div><h2 id="retry-title">All caption sessions are in use.</h2><p>Your finalized words stay here. CatchAll will retry automatically.</p></div><p id="retry-countdown" aria-live="off">Waiting for a session</p></section></header>
+<dialog id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description"><form method="dialog"><h2 id="clear-dialog-title">Clear this transcript?</h2><p id="clear-dialog-description">This removes finalized verbatim and plain-language captions from this browser session. Export anything you want to keep first.</p><div class="dialog-actions"><button type="submit" value="cancel" autofocus>Keep transcript</button><button class="danger-button" type="submit" value="clear">Clear transcript</button></div></form></dialog>
+<main id="captions" aria-label="Live captions" tabindex="-1"><div class="lanes"><section class="lane" aria-labelledby="verbatim-heading"><div class="lane-heading"><div><h2 id="verbatim-heading">Verbatim captions</h2><p>The speaker's original words</p></div><span class="original-label">Original</span></div><div class="caption-region"><h3 class="sr-only">Finalized captions</h3><p id="finalized-captions" class="caption-text" role="log" aria-live="polite" aria-relevant="additions">Finalized captions will appear here.</p><div class="provisional-region"><h3 class="sr-only">Provisional captions</h3><p class="caption-text provisional"><span id="provisional-caption">Start the microphone and speak. Finalized words stay put.</span></p></div></div><p class="caption-key"><span><b>Ink <i aria-hidden="true">●</i></b> Finalized</span><span><em>Pencil</em> Provisional, may change</span></p></section>
+<section class="lane plain-lane" aria-labelledby="plain-heading"><div class="lane-heading"><div><h2 id="plain-heading">Plain-language captions <span class="sr-only">(optional)</span></h2><p>An optional companion</p></div></div><div class="plain-language-controls"><label for="plain-language-toggle"><input id="plain-language-toggle" type="checkbox" aria-describedby="plain-language-status" disabled>Show plain-language captions</label><p id="plain-language-status" role="status" aria-live="polite" aria-atomic="true">Off. Connect to enable.</p></div><div class="caption-region"><h3 class="sr-only">Simplified captions</h3><p id="plain-language-captions" class="caption-text" role="log" aria-live="polite" aria-relevant="additions">Plain-language captions are off</p></div><p class="plain-explanation">Only finalized sentences are considered. If a rewrite fails a safety check, the original sentence is shown here. The verbatim transcript stays authoritative.</p></section></div></main>
+<footer class="site-footer"><p>CatchAll does not store audio or transcripts. Microphone audio is sent to the machine hosting CatchAll for captioning, without a third-party speech service.</p><a href="https://github.com/lorenzoworx/catchAll" target="_blank" rel="noopener noreferrer">About the prototype ↗</a></footer></div><script type="module" src="/static/app.js"></script></body></html>

@@ -1,3 +1,4 @@
+import { microphoneLevel, retrySeconds } from "./caption-presentation.js";
 import { buildAudioFrame } from "./audio-protocol.js";
 import { CaptionTranscriptState } from "./caption-transcript-state.js";
 import {
@@ -46,6 +47,18 @@ const audioSupport = detectAudioCaptureSupport(window);
 
 let connection = null;
 let serverReady = false;
+let serverBusy = false;
+let retryTimer = null;
+const retryCard = document.querySelector("#retry-card");
+const retryCountdown = document.querySelector("#retry-countdown");
+const inputLevel = document.querySelector("#input-level");
+let lastMeterUpdate = 0;
+
+function stopRetryCountdown() {
+    window.clearInterval(retryTimer);
+    retryTimer = null;
+}
+
 
 const captureSession = new AudioCaptureSession({
     environment: window,
@@ -127,6 +140,14 @@ function updateTranscriptActions() {
 function handleAudioCaptureMessage(event) {
     if (event.data.type === "audio-frame") {
         const samples = new Int16Array(event.data.samples);
+        // Limit visual updates to 10Hz; audio frames still pass through unchanged.
+        const now = performance.now();
+        if (now - lastMeterUpdate >= 100) {
+            const level = microphoneLevel(samples);
+            inputLevel.style.setProperty("--level", String(level));
+            inputLevel.setAttribute("aria-valuenow", String(Math.round(level * 100)));
+            lastMeterUpdate = now;
+        }
         const frame = buildAudioFrame(
             samples,
             event.data.firstSampleIndex,
@@ -171,8 +192,16 @@ function handleSocketMessage(event) {
 
     const view = describeServerView(message);
     applyViewState(view);
+    if (view?.kind === "server-busy") {
+        serverBusy = true;
+        retryCard.hidden = false;
+        retryCountdown.textContent = "Waiting for a session";
+    }
 
     if (view?.kind === "recognizer-ready") {
+        serverBusy = false;
+        retryCard.hidden = true;
+        stopRetryCountdown();
         connection.markStable();
         setReadyMicrophoneState();
 
@@ -197,6 +226,7 @@ function handleSocketMessage(event) {
         }
 
         const segment = document.createElement("span");
+        segment.className = "committed-phrase";
         segment.textContent = `${update.segment.text} `;
 
         finalizedCaptions.append(segment);
@@ -253,6 +283,18 @@ function handleSocketMessage(event) {
 }
 
 function handleConnectionState(connectionState) {
+    stopRetryCountdown();
+    if (serverBusy && connectionState.state === "waiting") {
+        const deadline = Date.now() + connectionState.delay;
+        const tick = () => {
+            const remaining = retrySeconds(deadline, Date.now());
+            retryCountdown.textContent = remaining ? `Retrying in ${remaining} s` : "Connecting…";
+        };
+        tick();
+        retryTimer = window.setInterval(tick, 250);
+    } else if (serverBusy && ["connecting", "reconnecting", "open"].includes(connectionState.state)) {
+        retryCountdown.textContent = "Connecting…";
+    }
     const view = describeConnectionView(connectionState);
     applyViewState(view);
 
@@ -327,6 +369,8 @@ async function stopCapture({
 } = {}) {
     microphoneButton.disabled = true;
     await captureSession.stop();
+    inputLevel.style.setProperty("--level", "0");
+    inputLevel.setAttribute("aria-valuenow", "0");
 
     microphoneButton.textContent = "Start microphone";
     captureDetails.textContent = "";
@@ -412,4 +456,5 @@ connection.start();
 window.addEventListener("pagehide", () => {
     void stopCapture({ finalize: false });
     connection.stop();
+    stopRetryCountdown();
 }, { once: true });
